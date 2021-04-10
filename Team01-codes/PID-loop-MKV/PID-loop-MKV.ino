@@ -19,7 +19,7 @@ int motor_pins[] = {10, 9, 8, 7, 6, 5};
 #define IN4 6
 #define MOTOR_SPEED 220
 
-#define MOTOR_A_ENCODER 4
+#define MOTOR_A_ENCODER 2
 #define MOTOR_B_ENCODER 3
 #define ENCODER_TICKS 20
 

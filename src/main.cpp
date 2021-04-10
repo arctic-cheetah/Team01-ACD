@@ -9,16 +9,17 @@
 //Motor pins
 int motor_pins[] = {10, 9, 8, 7, 6, 5};
 #define NUM_OF_MOTOR_PIN 5
-#define ENA 10
+#define ENA 10 //Left motor
 #define IN1 9
 #define IN2 8
-#define ENB 5
+#define ENB 5 //Right motor
 #define IN3 7
 #define IN4 6
 #define MOTOR_SPEED 255
 #define MOTOR_A_ENCODER 2
 #define MOTOR_B_ENCODER 3
 #define ENCODER_TICKS 20
+
 //direction codes: f == forward, r == reverse, s == stop
 char direction;
 
@@ -81,26 +82,24 @@ int lastTime = 10; //Keep track of time for arduino reversing truck sound
 
 //PID loop constants
 #define TIME_STEP 100 //Tells the Uno to sample and adjust the motor speed in milliseconds
-double prev_error, integral = 0;
-double Kp = 0.4;
-double Ki = 1.143;
-double Kd = 0.0035;
+#define CHECK_SPEED 10 //Tell the Arduino the time to check the speed
+#define MOTOR_OFFSET 5  
 #define MAX_PWM 255
-#define MIN_PWM 0
-double motor_A_freq_input, motor_A_freq_output;
-double motor_B_freq_input, motor_B_freq_output;  
-double motor_freq_set = 80;//Set the encoder frequency of the motor
 
-//Object declarations
-PID motor_A(&motor_A_freq_input, &motor_A_freq_output, &motor_freq_set, Kp, Ki, Kd, DIRECT);
-PID motor_B(&motor_B_freq_input, &motor_B_freq_output, &motor_freq_set, Kp, Ki, Kd, DIRECT);
+//Encoder count
+void count_left();
+void count_right();
+
+
+//Tracks the ticks
+volatile unsigned long enc_l = 0;
+volatile unsigned long enc_r = 0;
 
 //Function prototypes
 //Initialisers
 void init_motor();
 void init_unloading_motor();
 void init_encoder();
-void init_pid();
 void init_IR_follower();
 void init_IR_OD();
 void init_USOD();
@@ -132,7 +131,7 @@ void close_gate();
 
 //PID control
 double encoder_frequency(int motor_encoder);
-void adjust_motor_speed();
+void adjust_motor(int power_a, int power_b);
 
 //Red-green light system
 void on_green_light();
@@ -150,7 +149,6 @@ void setup() {
     //Motor control
 	init_motor();
 	init_encoder();
-	init_pid();
 	init_IR_follower();
     //Obstacle detection
     init_IR_OD();
@@ -166,64 +164,119 @@ void setup() {
 }
 
 void loop() {
-	//Remote control
-	
-	if (Serial.available()) {
-		motor_direction(Serial.read());
-	}
-    /*
-    Serial.println(distance_by_USOD(USOD_F_TRIG, USOD_F_ECHO));
-    Serial.println("\\\\\\\\\\\\\\\\\\");
-    Serial.println(distance_by_USOD(USOD_R_TRIG, USOD_R_ECHO));
-	//direction = motor_direction();
-    */
-	
-    on_green_light();
-    //Egg is inside, go to loading zone
-    if (is_egg_inside()) {
-        //move forwards
-        direction = 'f';
-        forward();
-    }
-    //No egg in the car, return to loading zone by reversing
-    //In future, may implement turn around
-    else {
-        //Go backwards
-        direction = 'b';
-        reverse();
-        reversing_truck_sound();
-    }
 
+    //Count the number of ticks from the encoder
+    unsigned long num_ticks_l;
+    unsigned long num_ticks_r;
+
+    // Set initial motor power
+    int power_l = MOTOR_SPEED;
+    int power_r = MOTOR_SPEED;
     
+    //Determine the turn to adjust trajectory
+    unsigned long diff_l;
+    unsigned long diff_r;
 
-    //Consider if this needs to be an interrupt
-    //Implement obstacle detection here:
+    // Remember previous encoder counts
+    unsigned long enc_l_prev = enc_l;
+    unsigned long enc_r_prev = enc_r;
+
+    while (true) {
+        //Remote control
+        
+        
+        if (Serial.available()) {
+            motor_direction(Serial.read());
+        }
+        /*
+        Serial.println(distance_by_USOD(USOD_F_TRIG, USOD_F_ECHO));
+        Serial.println("\\\\\\\\\\\\\\\\\\");
+        Serial.println(distance_by_USOD(USOD_R_TRIG, USOD_R_ECHO));
+        //direction = motor_direction();
+        */
+
+        //1) Adjust motor speed
+        num_ticks_l = enc_l;
+        num_ticks_r = enc_r;
+
+        // Number of ticks counted since last time
+        //Proportional
+        diff_l = num_ticks_l - enc_l_prev;
+        diff_r = num_ticks_r - enc_r_prev;
     
-    //3a)Stop moving until the obstacle has passed
-    //Show the red light
-    while (is_object_nearby()) {
-        Serial.print("Object detected!\n");
-        off_green_light();
-        halt();
-        on_red_light();
-        delay(5 * TIME_STEP);
+        // Store current tick counter for next time
+        enc_l_prev = num_ticks_l;
+        enc_r_prev = num_ticks_r;
+
+        // Print out current number of ticks
+        Serial.print(num_ticks_l);
+        Serial.print("\t");
+        Serial.println(num_ticks_r);
+
+        //Adjust the motor
+        adjust_motor(power_l, power_r);
+
+        // If left is faster, slow it down and speed up right
+        //output
+        if ( diff_l > diff_r ) {
+            power_l -= MOTOR_OFFSET;
+            power_r += MOTOR_OFFSET;
+        }
+        
+        // If right is faster, slow it down and speed up left
+        if ( diff_l < diff_r ) {
+            power_l += MOTOR_OFFSET;
+            power_r -= MOTOR_OFFSET;
+        }
+        
+
+        //2)
+        on_green_light();
+        //Egg is inside, go to loading zone
+        if (is_egg_inside()) {
+            //move forwards
+            direction = 'f';
+            forward();
+        }
+        //No egg in the car, return to loading zone by reversing
+        //In future, may implement turn around
+        else {
+            //Go backwards
+            direction = 'b';
+            reverse();
+            reversing_truck_sound();
+        }
+
+        
+
+        //Consider if this needs to be an interrupt
+        //Implement obstacle detection here:
+        
+        //3a)Stop moving until the obstacle has passed
+        //Show the red light
+        while (is_object_nearby()) {
+            Serial.print("Object detected!\n");
+            off_green_light();
+            halt();
+            on_red_light();
+        }
+        off_red_light();
+        
+        //3b,c,d)
+        //Implement trajectory control here:
+        //Operates by briefly slowing down the faster motor 
+        adjust_trajectory(direction);
+        //Adjust speed via PID loop
+
+
+        //4)Check if the IR signal is received
+        while(do_begin_unloading(is_egg_inside()) );
+
+        //Time step = 100ms
+        //May need to adjust this because of other sensor delays
+        delay(10);
     }
-    off_red_light();
-	
-    //3b,c,d)
-	//Implement trajectory control here:
-	//Operates by briefly slowing down the faster motor 
-	adjust_trajectory(direction);
-	//Adjust speed via PID loop
-    //adjust_motor_speed();
-
-
-    //4)Check if the IR signal is received
-    while(do_begin_unloading(is_egg_inside()) );
-
-    //Time step = 100ms
-    //May need to adjust this because of other sensor delays
-	delay(TIME_STEP);
+       
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -251,16 +304,11 @@ void init_encoder() {
     //Set pin 2 and 3 as input
     pinMode(MOTOR_A_ENCODER, INPUT);
     pinMode(MOTOR_B_ENCODER, INPUT);
+    //Attach interrupt pins
+    attachInterrupt(digitalPinToInterrupt(MOTOR_A_ENCODER), count_left, CHANGE);
+    attachInterrupt(digitalPinToInterrupt(MOTOR_B_ENCODER), count_right, CHANGE);
 }
-//Initialise PID system
-void init_pid() {
-	//Turn on the PID
-    motor_A.SetMode(AUTOMATIC);
-    motor_B.SetMode(AUTOMATIC);
-    //Set constraints on PID
-    motor_A.SetOutputLimits(MIN_PWM, MAX_PWM);
-    motor_B.SetOutputLimits(MIN_PWM, MAX_PWM);
-}
+
 //Initialise IR line followers for trajectory control
 void init_IR_follower() {
 	//Front IR_LF's
@@ -496,6 +544,14 @@ double distance_by_USOD(int trig_pin, int echo_pin) {
     return dist;
 }
 
+//Return the number of ticks of the left or right motor
+void count_left() {
+    enc_l +=1;
+}
+void count_right() {
+    enc_r +=1;
+}
+
 //Returns the frequency of the encoder signal of the motor and is
 //related to rpm
 double encoder_frequency(int motor_encoder) {
@@ -526,15 +582,20 @@ double encoder_frequency(int motor_encoder) {
     return 0.0;
 }
 
-//Adjusts motor speed via a PID loop
-void adjust_motor_speed() {
-	motor_A_freq_input = encoder_frequency(MOTOR_A_ENCODER);
-    motor_B_freq_input = encoder_frequency(MOTOR_B_ENCODER);
-    motor_A.Compute();
-    motor_B.Compute();
-    analogWrite(ENA, motor_A_freq_output);
-    analogWrite(ENB, motor_B_freq_output);
+//Drive and adjust the car's speed
+void adjust_motor(int power_a, int power_b) {
+    // Constrain power to between -255 and 255
+    power_a = constrain(power_a, -255, 255);
+    power_b = constrain(power_b, -255, 255);
+
+    reverse();
+
+    //adjust the speed of the motors
+    analogWrite(ENA, power_a);
+    analogWrite(ENB, power_b);
 }
+
+
 
 //Returns true if the vehicle has arrived at the designated zone
 //Otherwise false
