@@ -3,8 +3,8 @@
 //Jeremy Mang
 //25-03-2021
 
-#define ECHO_PIN 9
-#define TRIGGER_PIN 10
+#define ECHO_PIN A7
+#define TRIGGER_PIN A6
 
 void setup() {
     Serial.begin(9600);
@@ -12,10 +12,17 @@ void setup() {
     pinMode(TRIGGER_PIN, OUTPUT);
     digitalWrite(TRIGGER_PIN, LOW);
     pinMode(ECHO_PIN, INPUT);
+
+    pinMode(A0, OUTPUT);
+    digitalWrite(A0, HIGH);
+    pinMode(A1, OUTPUT);
+    digitalWrite(A1, HIGH);
+    pinMode(A2, OUTPUT);
+    digitalWrite(A2, HIGH);
+    delay(2000);
 }
 
 void loop () {
-    unsigned long TimeOut = 38000;
     
     //Send 8 pulses at 40Khz for approx 10ms
     //Make Echo_pin high and  Trigger pin Low
@@ -35,5 +42,5 @@ void loop () {
     Serial.print("cm \n");
     
     // Pause and do it again
-    delay(200);
+    delay(300);
 }

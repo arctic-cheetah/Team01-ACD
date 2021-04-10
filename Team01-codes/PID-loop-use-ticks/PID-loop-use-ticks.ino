@@ -1,5 +1,5 @@
-//Arduino code for a PID loop by measuring the motor RPM, developed from the motor car code
-//Uses the PID library and works for both motors
+//Arduino code for a pseudo P loop by measuring the motor RPM, developed from the motor car code
+//Compares the number of ticks to match the speed
 //Jeremy Mang
 //25-03-2021
 
@@ -14,38 +14,31 @@ int motor_pins[] = {10, 9, 8, 7, 6, 5};
 #define ENB 5
 #define IN3 7
 #define IN4 6
-#define MOTOR_SPEED 255
+#define MOTOR_SPEED 220
 
-#define MOTOR_A_ENCODER 4
+#define MOTOR_A_ENCODER 2
 #define MOTOR_B_ENCODER 3
 #define ENCODER_TICKS 20
 
 //PID loop constants
 #define TIME_STEP 10 //Tells the Uno to sample and adjust the motor speed in milliseconds
-double prev_error, integral = 0;
-//Motor_A constants
-double Kp = 0.4;
-double Ki = 1.143;
-double Kd = 0.007;
-//Motor_B constants
-double KpB = 0.4;
-double KiB = 1.143;
-double KdB = 0.0035;
+#define MOTOR_OFFSET 5  
 
 #define MAX_PWM 255
-#define MIN_PWM 200
+#define MIN_PWM 0
 double motor_A_freq_input, motor_A_freq_output;
-double motor_B_freq_input, motor_B_freq_output;  
+double motor_B_freq_input, motor_B_freq_output;
+double same_input, same_output;  
 double motor_freq_set = 80;//Set the encoder frequency of the motor
-#define TIME_STEP 100
+
+//Tracks the ticks
+volatile unsigned long enc_l = 0;
+volatile unsigned long enc_r = 0;
+#define TIME_STEP 10
 
 //Exponential smoothing constants
 double prev_term = 0;
 #define ALPHA 0.1
-
-//Object declarations
-PID motor_A(&motor_A_freq_input, &motor_A_freq_output, &motor_freq_set, Kp, Ki, Kd, DIRECT);
-PID motor_B(&motor_B_freq_input, &motor_B_freq_output, &motor_freq_set, Kp, Ki, Kd, DIRECT);
 
 //Function prototypes
 //Initialisers
@@ -63,45 +56,95 @@ double motor_speed(int motor_encoder);
 double encoder_frequency(int motor_encoder);
 double duty_cycle(double T_period, unsigned long T_on);
 double exponential_smoothing(double prev_term, double curr_term);
+void count_left();
+void count_right();
 
 void setup() {
     Serial.begin(9600);
     //Initialise systems
     init_motor();
     init_encoder();
+
+    pinMode(A2, OUTPUT);
+    digitalWrite(A2, HIGH);
+    pinMode(A1, OUTPUT);
+    digitalWrite(A1, HIGH);
+    pinMode(A0, OUTPUT);
+    digitalWrite(A0, HIGH);
     
-    //Turn on the PID
-    motor_A.SetMode(AUTOMATIC);
-    motor_B.SetMode(AUTOMATIC);
-    //Set constraints on PID
-    motor_A.SetOutputLimits(MIN_PWM, MAX_PWM);
-    motor_B.SetOutputLimits(MIN_PWM, MAX_PWM);
+    //Setup interrupts
+    attachInterrupt(digitalPinToInterrupt(MOTOR_A_ENCODER), count_left, CHANGE);
+    attachInterrupt(digitalPinToInterrupt(MOTOR_B_ENCODER), count_right, CHANGE);
     Serial.println("Motor PID loop test via encoder frequency:\n");
-    delay(TIME_STEP);
+    delay(1000);
 }
 
 void loop() {
-    /*
-    if (Serial.available()) {
-        motor_direction(Serial.read());
+
+    unsigned long num_ticks_l;
+    unsigned long num_ticks_r;
+
+    // Set initial motor power
+    int power_l = MOTOR_SPEED;
+    int power_r = MOTOR_SPEED;
+    
+    //Determine the turn to adjust trajectory
+    unsigned long diff_l;
+    unsigned long diff_r;
+    
+    // Reset encoder counts
+    enc_l = 0;
+    enc_r = 0;
+    
+    // Remember previous encoder counts
+    unsigned long enc_l_prev = enc_l;
+    unsigned long enc_r_prev = enc_r;
+
+    unsigned long target_count = 1000;
+
+    while ( (enc_l < target_count) && (enc_r < target_count) ) {
+        // Sample number of encoder ticks
+        num_ticks_l = enc_l;
+        num_ticks_r = enc_r;
+
+        //Drive
+        drive(power_l, power_r);
+        
+        // Print out current number of ticks
+        Serial.print(num_ticks_l);
+        Serial.print("\t");
+        Serial.println(num_ticks_r);
+
+        // Number of ticks counted since last time
+        //Proportional
+        diff_l = num_ticks_l - enc_l_prev;
+        diff_r = num_ticks_r - enc_r_prev;
+    
+        // Store current tick counter for next time
+        enc_l_prev = num_ticks_l;
+        enc_r_prev = num_ticks_r;
+
+        // If left is faster, slow it down and speed up right
+        //output
+        if ( diff_l > diff_r ) {
+            power_l -= MOTOR_OFFSET;
+            power_r += MOTOR_OFFSET;
+        }
+        
+        // If right is faster, slow it down and speed up left
+        if ( diff_l < diff_r ) {
+            power_l += MOTOR_OFFSET;
+            power_r -= MOTOR_OFFSET;
+        }
+        
+        delay(TIME_STEP);
     }
-    */
-    forward();
-    //Debugging output
-    Serial.print("A,");
-    motor_A_freq_input = encoder_frequency(MOTOR_A_ENCODER);
-    Serial.print("B,");
-    motor_B_freq_input = encoder_frequency(MOTOR_B_ENCODER);
-    //motor_speed(MOTOR_B_ENCODER);
-    motor_A.Compute();
-    motor_B.Compute();
+
+    //End program
+    while(true){
+        halt();
+    }
     
-    //Serial.println(motor_A_freq_output);
-    analogWrite(ENA, motor_A_freq_output);
-    analogWrite(ENB, motor_B_freq_output);
-    
-    
-    delay(TIME_STEP);
 }
 //////////////////////////////////////////////////////////////////////////////////////
 //Functions here
@@ -185,6 +228,16 @@ double encoder_frequency(int motor_encoder) {
 
 }
 
+
+//Return the number of ticks of the left or right motor
+void count_left() {
+    enc_l +=1;
+}
+void count_right() {
+    enc_r +=1;
+}
+
+
 //Print the duty cycle
 double duty_cycle(double T_period, unsigned long T_on) {
     return double(T_on / T_period);
@@ -251,6 +304,19 @@ void halt() {
     digitalWrite(IN4, LOW);
 }
 
+//Drive and adjust the car's speed
+void drive(int power_a, int power_b) {
+    // Constrain power to between -255 and 255
+    power_a = constrain(power_a, -255, 255);
+    power_b = constrain(power_b, -255, 255);
+
+    reverse();
+
+    //adjust the speed of the motors
+    analogWrite(ENA, power_a);
+    analogWrite(ENB, power_b);
+}
+
 
 //Initialise motor pins
 void init_motor() {
@@ -258,9 +324,6 @@ void init_motor() {
     for (int i = 0; i < NUM_OF_MOTOR_PIN; i +=1) {
         pinMode(motor_pins[i], OUTPUT);
     }
-    //Set the speed of the motors
-    analogWrite(ENA, MOTOR_SPEED);
-    analogWrite(ENB, MOTOR_SPEED);
 
 }
 //Initialise encoder pins

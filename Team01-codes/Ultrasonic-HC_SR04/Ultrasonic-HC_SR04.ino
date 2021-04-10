@@ -2,8 +2,8 @@
 //Jeremy Mang
 //25-03-2021
 
-#define ECHO_PIN 9
-#define TRIGGER_PIN 10
+#define ECHO_PIN A9
+#define TRIGGER_PIN A8
 
 void setup() {
     Serial.begin(9600);
@@ -11,6 +11,9 @@ void setup() {
     pinMode(TRIGGER_PIN, OUTPUT);
     digitalWrite(TRIGGER_PIN, LOW);
     pinMode(ECHO_PIN, INPUT);
+
+    pinMode(A0, OUTPUT);
+    digitalWrite(A0, HIGH);
 }
 
 void loop () {
@@ -24,7 +27,7 @@ void loop () {
 
 
     //Wait for the echo pin to become high
-    unsigned long endTime = micros() + 1000;
+    unsigned long endTime = micros() + long(1000);//ENSURE THIS IS a LONG
     while (micros() < endTime && !digitalRead(ECHO_PIN));
 
     //Begin timing for the echo pin
