@@ -60,8 +60,8 @@ char direction;
 
 //IR receivers pins 27-28
 //Left side
-#define IR_REC_III 28
-#define IR_REC_IV 27
+#define IR_REC_III 27
+#define IR_REC_IV 28
 
 //Red LED
 #define RED_LED 32
@@ -81,8 +81,30 @@ int lastTime = 10; //Keep track of time for arduino reversing truck sound
 #define VCC3 A2
 
 //PID loop constants
-#define TIME_STEP 100 //Tells the Uno to sample and adjust the motor speed in milliseconds
+#define TIME_STEP 50 //Tells the Uno to sample and adjust the motor speed in milliseconds
 #define MAX_PWM 230
+#define MOTOR_OFFSET 5
+//Tracks the ticks
+volatile unsigned long enc_l = 0;
+volatile unsigned long enc_r = 0;
+
+unsigned long num_ticks_l;
+    unsigned long num_ticks_r;
+
+    // Set initial motor power
+    int power_l = MOTOR_SPEED;
+    int power_r = MOTOR_SPEED;
+    
+    //Determine the turn to adjust trajectory
+    unsigned long diff_l;
+    unsigned long diff_r;
+    
+    
+    
+    // Remember previous encoder counts
+    unsigned long enc_l_prev = enc_l;
+    unsigned long enc_r_prev = enc_r;
+
 
 
 //Function prototypes
@@ -121,7 +143,10 @@ void close_gate();
 
 //PID control
 double encoder_frequency(int motor_encoder);
-void adjust_motor_speed(int motor_a, int motor_b);
+void drive(int power_a, int power_b);
+void count_left();
+void count_right();
+
 
 //Red-green light system
 void on_green_light();
@@ -154,6 +179,8 @@ void setup() {
 }
 
 void loop() {
+
+
 	//Remote control
 	/*
 	if (Serial.available()) {
@@ -206,8 +233,44 @@ void loop() {
 	//Implement trajectory control here:
 	//Operates by briefly slowing down the faster motor 
 	adjust_trajectory(direction);
+
 	//Adjust speed via PID loop
-	//adjust_motor_speed();
+	// Sample number of encoder ticks
+	num_ticks_l = enc_l;
+	num_ticks_r = enc_r;
+
+	//Drive
+	drive(power_l, power_r);
+	
+	// Print out current number of ticks
+	
+	Serial.print(num_ticks_l);
+	Serial.print("\t");
+	Serial.println(num_ticks_r);
+	
+
+	// Number of ticks counted since last time
+	//Proportional
+	diff_l = num_ticks_l - enc_l_prev;
+	diff_r = num_ticks_r - enc_r_prev;
+
+	// Store current tick counter for next time
+	enc_l_prev = num_ticks_l;
+	enc_r_prev = num_ticks_r;
+
+	// If left is faster, slow it down and speed up right
+	//output
+	if ( diff_l > diff_r ) {
+		power_l -= MOTOR_OFFSET;
+		power_r += MOTOR_OFFSET;
+	}
+	
+	// If right is faster, slow it down and speed up left
+	if ( diff_l < diff_r ) {
+		power_l += MOTOR_OFFSET;
+		power_r -= MOTOR_OFFSET;
+	}
+
 
 
 	//4)Check if the IR signal is received
@@ -215,7 +278,7 @@ void loop() {
 	//Time step = 100ms
 	//May need to adjust this because of other sensor delays
 	delay(TIME_STEP);
-
+	
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -243,6 +306,11 @@ void init_encoder() {
     //Set pin 2 and 3 as input
     pinMode(MOTOR_A_ENCODER, INPUT);
     pinMode(MOTOR_B_ENCODER, INPUT);
+
+	//Setup interrupts
+	
+    attachInterrupt(digitalPinToInterrupt(MOTOR_A_ENCODER), count_left, CHANGE);
+    attachInterrupt(digitalPinToInterrupt(MOTOR_B_ENCODER), count_right, CHANGE);
 }
 //Initialise IR line followers for trajectory control
 void init_IR_follower() {
@@ -347,20 +415,19 @@ void adjust_trajectory(char direction) {
 		//Manual adjustment
 		if (digitalRead(IR_LF_A) && !digitalRead(IR_LF_B) && !digitalRead(IR_LF_C)) {
             
-			adjust_motor_speed(MAX_PWM - 20, MAX_PWM);
+			analogWrite(ENA, MAX_PWM - 20);
             Serial.println("turn left");
 			delay(TIME_STEP);
             //forward();
 		}
 		//Adjust to the right, if it veers to the left
 		else if (!digitalRead(IR_LF_A) && !digitalRead(IR_LF_B) && digitalRead(IR_LF_C)) {
-			adjust_motor_speed(MAX_PWM, MAX_PWM - 100);
+			analogWrite(ENB, MAX_PWM - 20);
             Serial.println("turn right");
 			delay(TIME_STEP);
             //forward();
         }
 
-/*
 	}
 	else if (direction == 'b') {
 		//During reverse
@@ -374,7 +441,6 @@ void adjust_trajectory(char direction) {
 			analogWrite(ENB, MAX_PWM);
 			delay(TIME_STEP);
 		}
-		*/
 	}
 }
 
@@ -411,10 +477,19 @@ void halt() {
     digitalWrite(IN4, LOW);
 }
 
-void adjust_motor_speed(int motor_a, int motor_b) {
-	analogWrite(ENA, motor_a);
-	analogWrite(ENB, motor_b);
+//Drive and adjust the car's speed
+void drive(int power_a, int power_b) {
+    // Constrain power to between -255 and 255
+    power_a = constrain(power_a, -255, 255);
+    power_b = constrain(power_b, -255, 255);
+
+    forward();
+
+    //adjust the speed of the motors
+    analogWrite(ENA, power_a);
+    analogWrite(ENB, power_b);
 }
+
 
 //Returns true if the IR obstacle detectors finds an object in front or the rear
 //Otherwise false
@@ -453,7 +528,7 @@ bool is_egg_inside() {
 //Returns the distance in cm from the Ultrasonic obstacle detector
 double distance_by_USOD(int trig_pin, int echo_pin) {
 
-    unsigned long TimeOut = 38000;
+    unsigned long TimeOut = 20000;
     
     //Send 8 pulses at 40Khz for approx 10ms
     digitalWrite(trig_pin, HIGH);
@@ -481,6 +556,15 @@ double distance_by_USOD(int trig_pin, int echo_pin) {
     //return the result
     return dist;
 }
+
+//Return the number of ticks of the left or right motor
+void count_left() {
+    enc_l +=1;
+}
+void count_right() {
+    enc_r +=1;
+}
+
 
 
 //Returns the frequency of the encoder signal of the motor and is
