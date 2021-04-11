@@ -9,10 +9,10 @@
 //Motor pins
 int motor_pins[] = {10, 9, 8, 7, 6, 5};
 #define NUM_OF_MOTOR_PIN 5
-#define ENA 10 //Left motor
+#define ENA 10
 #define IN1 9
 #define IN2 8
-#define ENB 5 //Right motor
+#define ENB 5
 #define IN3 7
 #define IN4 6
 #define MOTOR_SPEED 255
@@ -28,7 +28,7 @@ char direction;
 #define UNLOADING_MOTOR_EN 12
 //controls direction
 #define UNLOADING_MOTOR_PHASE 31
-#define UNLOAD_STEPS 16
+#define UNLOAD_STEPS 18
 
 //IR-line following (IRLF) pins A0 - A5
 //Front IR line followers
@@ -58,10 +58,10 @@ char direction;
 //Stopping distance for the USOD
 #define STOP_DIST 15.0
 
-//IR receivers pins 29-30
+//IR receivers pins 27-28
 //Left side
-#define IR_REC_III 29
-#define IR_REC_IV 30
+#define IR_REC_III 28
+#define IR_REC_IV 27
 
 //Red LED
 #define RED_LED 32
@@ -82,18 +82,8 @@ int lastTime = 10; //Keep track of time for arduino reversing truck sound
 
 //PID loop constants
 #define TIME_STEP 100 //Tells the Uno to sample and adjust the motor speed in milliseconds
-#define CHECK_SPEED 10 //Tell the Arduino the time to check the speed
-#define MOTOR_OFFSET 5  
-#define MAX_PWM 255
+#define MAX_PWM 230
 
-//Encoder count
-void count_left();
-void count_right();
-
-
-//Tracks the ticks
-volatile unsigned long enc_l = 0;
-volatile unsigned long enc_r = 0;
 
 //Function prototypes
 //Initialisers
@@ -131,7 +121,7 @@ void close_gate();
 
 //PID control
 double encoder_frequency(int motor_encoder);
-void adjust_motor(int power_a, int power_b);
+void adjust_motor_speed(int motor_a, int motor_b);
 
 //Red-green light system
 void on_green_light();
@@ -164,119 +154,68 @@ void setup() {
 }
 
 void loop() {
-
-    //Count the number of ticks from the encoder
-    unsigned long num_ticks_l;
-    unsigned long num_ticks_r;
-
-    // Set initial motor power
-    int power_l = MOTOR_SPEED;
-    int power_r = MOTOR_SPEED;
-    
-    //Determine the turn to adjust trajectory
-    unsigned long diff_l;
-    unsigned long diff_r;
-
-    // Remember previous encoder counts
-    unsigned long enc_l_prev = enc_l;
-    unsigned long enc_r_prev = enc_r;
-
-    while (true) {
-        //Remote control
-        
-        
-        if (Serial.available()) {
-            motor_direction(Serial.read());
-        }
-        /*
-        Serial.println(distance_by_USOD(USOD_F_TRIG, USOD_F_ECHO));
-        Serial.println("\\\\\\\\\\\\\\\\\\");
-        Serial.println(distance_by_USOD(USOD_R_TRIG, USOD_R_ECHO));
-        //direction = motor_direction();
-        */
-
-        //1) Adjust motor speed
-        num_ticks_l = enc_l;
-        num_ticks_r = enc_r;
-
-        // Number of ticks counted since last time
-        //Proportional
-        diff_l = num_ticks_l - enc_l_prev;
-        diff_r = num_ticks_r - enc_r_prev;
-    
-        // Store current tick counter for next time
-        enc_l_prev = num_ticks_l;
-        enc_r_prev = num_ticks_r;
-
-        // Print out current number of ticks
-        Serial.print(num_ticks_l);
-        Serial.print("\t");
-        Serial.println(num_ticks_r);
-
-        //Adjust the motor
-        adjust_motor(power_l, power_r);
-
-        // If left is faster, slow it down and speed up right
-        //output
-        if ( diff_l > diff_r ) {
-            power_l -= MOTOR_OFFSET;
-            power_r += MOTOR_OFFSET;
-        }
-        
-        // If right is faster, slow it down and speed up left
-        if ( diff_l < diff_r ) {
-            power_l += MOTOR_OFFSET;
-            power_r -= MOTOR_OFFSET;
-        }
-        
-
-        //2)
-        on_green_light();
-        //Egg is inside, go to loading zone
-        if (is_egg_inside()) {
-            //move forwards
-            direction = 'f';
-            forward();
-        }
-        //No egg in the car, return to loading zone by reversing
-        //In future, may implement turn around
-        else {
-            //Go backwards
-            direction = 'b';
-            reverse();
-            reversing_truck_sound();
-        }
-
-        
-
-        //Consider if this needs to be an interrupt
-        //Implement obstacle detection here:
-        
-        //3a)Stop moving until the obstacle has passed
-        //Show the red light
-        while (is_object_nearby()) {
-            Serial.print("Object detected!\n");
-            off_green_light();
-            halt();
-            on_red_light();
-        }
-        off_red_light();
-        
-        //3b,c,d)
-        //Implement trajectory control here:
-        //Operates by briefly slowing down the faster motor 
-        adjust_trajectory(direction);
-        //Adjust speed via PID loop
+	//Remote control
+	/*
+	if (Serial.available()) {
+		motor_direction(Serial.read());
+	}
+	*/
+	/*
+	Serial.println(distance_by_USOD(USOD_F_TRIG, USOD_F_ECHO));
+	Serial.println("\\\\\\\\\\\\\\\\\\");
+	Serial.println(distance_by_USOD(USOD_R_TRIG, USOD_R_ECHO));
+	//direction = motor_direction();
+	*/
 
 
-        //4)Check if the IR signal is received
-        while(do_begin_unloading(is_egg_inside()) );
+	on_green_light();
+	//Egg is inside, go to loading zone
+	if (is_egg_inside()) {
+		//move forwards
+		direction = 'f';
+		Serial.print("Forward\n");
+		forward();
+	}
+	//No egg in the car, return to loading zone by reversing
+	//In future, may implement turn around
+	else {
+		//Go backwards
+		direction = 'b';
+		reverse();
+		Serial.print("Backward\n");
+		reversing_truck_sound();
+	}
 
-        //Time step = 100ms
-        //May need to adjust this because of other sensor delays
-        delay(10);
-    }
-       
+
+
+	//Consider if this needs to be an interrupt
+	//Implement obstacle detection here:
+
+	//3a)Stop moving until the obstacle has passed
+	//Show the red light
+	while (is_object_nearby()) {
+		Serial.print("Object detected!\n");
+		off_green_light();
+		halt();
+		on_red_light();
+		delay(5 * TIME_STEP);
+	}
+	off_red_light();
+
+	//3b,c,d)
+	//Implement trajectory control here:
+	//Operates by briefly slowing down the faster motor 
+	adjust_trajectory(direction);
+	//Adjust speed via PID loop
+	//adjust_motor_speed();
+
+
+	//4)Check if the IR signal is received
+	while(do_begin_unloading(is_egg_inside()) );
+	//Time step = 100ms
+	//May need to adjust this because of other sensor delays
+	delay(TIME_STEP);
+
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -304,11 +243,7 @@ void init_encoder() {
     //Set pin 2 and 3 as input
     pinMode(MOTOR_A_ENCODER, INPUT);
     pinMode(MOTOR_B_ENCODER, INPUT);
-    //Attach interrupt pins
-    attachInterrupt(digitalPinToInterrupt(MOTOR_A_ENCODER), count_left, CHANGE);
-    attachInterrupt(digitalPinToInterrupt(MOTOR_B_ENCODER), count_right, CHANGE);
 }
-
 //Initialise IR line followers for trajectory control
 void init_IR_follower() {
 	//Front IR_LF's
@@ -410,40 +345,36 @@ void adjust_trajectory(char direction) {
 	if (direction == 'f') {
 		//Adjust to the left lightly, if it goes to the right
 		//Manual adjustment
-		if (digitalRead(IR_LF_A) && !digitalRead(IR_LF_B) && digitalRead(IR_LF_C) && digitalRead(IR_LF_D) && digitalRead(IR_LF_E)) {
-			left();
+		if (digitalRead(IR_LF_A) && !digitalRead(IR_LF_B) && !digitalRead(IR_LF_C)) {
+            
+			adjust_motor_speed(MAX_PWM - 20, MAX_PWM);
+            Serial.println("turn left");
 			delay(TIME_STEP);
             //forward();
 		}
-        //Adjust to the left hard, if it goes to the far right
-        else if (!digitalRead(IR_LF_A) && digitalRead(IR_LF_B) && digitalRead(IR_LF_C) && digitalRead(IR_LF_D) && digitalRead(IR_LF_E)) {
-            left();
-            delay(10 * TIME_STEP);
-        }
-		//Adjust to the left, if it veers to the right
-		else if (digitalRead(IR_LF_A) && digitalRead(IR_LF_B) && digitalRead(IR_LF_C) && !digitalRead(IR_LF_D) && digitalRead(IR_LF_E)) {
-			right();
+		//Adjust to the right, if it veers to the left
+		else if (!digitalRead(IR_LF_A) && !digitalRead(IR_LF_B) && digitalRead(IR_LF_C)) {
+			adjust_motor_speed(MAX_PWM, MAX_PWM - 100);
+            Serial.println("turn right");
 			delay(TIME_STEP);
             //forward();
-		}
-        else if (digitalRead(IR_LF_A) && digitalRead(IR_LF_B) && digitalRead(IR_LF_C) && digitalRead(IR_LF_D) && !digitalRead(IR_LF_E)) {
-            right();
-			delay(10 * TIME_STEP);
         }
 
+/*
 	}
 	else if (direction == 'b') {
 		//During reverse
 		//Adjust to the right, if it goes to the left
 		if (digitalRead(IR_LF_C)) {
-			analogWrite(ENA, 250);
+			analogWrite(ENA, MAX_PWM);
 			delay(TIME_STEP);
 		}
 		//Adjust to the left, if it veers to the right
 		if (digitalRead(IR_LF_A) && !digitalRead(IR_LF_D)) {
-			analogWrite(ENB, 250);
+			analogWrite(ENB, MAX_PWM);
 			delay(TIME_STEP);
 		}
+		*/
 	}
 }
 
@@ -461,22 +392,28 @@ void reverse() {
     digitalWrite(IN4, LOW);
 }
 void left() {
+	digitalWrite(IN1, HIGH);
+    digitalWrite(IN2, LOW);
+    digitalWrite(IN3, HIGH);
+    digitalWrite(IN4, LOW);
+    
+}
+void right() {
     digitalWrite(IN1, LOW);
     digitalWrite(IN2, HIGH);
     digitalWrite(IN3, LOW);
     digitalWrite(IN4, HIGH);
-}
-void right() {
-    digitalWrite(IN1, HIGH);
-    digitalWrite(IN2, LOW);
-    digitalWrite(IN3, HIGH);
-    digitalWrite(IN4, LOW);
 }
 void halt() {
     digitalWrite(IN1, LOW);
     digitalWrite(IN2, LOW);
     digitalWrite(IN3, LOW);
     digitalWrite(IN4, LOW);
+}
+
+void adjust_motor_speed(int motor_a, int motor_b) {
+	analogWrite(ENA, motor_a);
+	analogWrite(ENB, motor_b);
 }
 
 //Returns true if the IR obstacle detectors finds an object in front or the rear
@@ -488,11 +425,12 @@ bool is_object_nearby() {
     double rear_dist = distance_by_USOD(USOD_R_TRIG, USOD_R_ECHO);
 
     //Debugging
+    /*
     Serial.print("USOD_F: ");
     Serial.println(front_dist);
     Serial.print("USOD_R: ");
     Serial.println(rear_dist);
-
+    */
     bool object_in_front = false;
     bool object_in_rear = false;
 
@@ -509,7 +447,7 @@ bool is_object_nearby() {
 //Returns true if the egg is inside the vehicle
 //otherwise false
 bool is_egg_inside() {
-    return digitalRead(IR_OD_5);
+    return !digitalRead(IR_OD_5);
 }
 
 //Returns the distance in cm from the Ultrasonic obstacle detector
@@ -544,13 +482,6 @@ double distance_by_USOD(int trig_pin, int echo_pin) {
     return dist;
 }
 
-//Return the number of ticks of the left or right motor
-void count_left() {
-    enc_l +=1;
-}
-void count_right() {
-    enc_r +=1;
-}
 
 //Returns the frequency of the encoder signal of the motor and is
 //related to rpm
@@ -582,24 +513,10 @@ double encoder_frequency(int motor_encoder) {
     return 0.0;
 }
 
-//Drive and adjust the car's speed
-void adjust_motor(int power_a, int power_b) {
-    // Constrain power to between -255 and 255
-    power_a = constrain(power_a, -255, 255);
-    power_b = constrain(power_b, -255, 255);
-
-    reverse();
-
-    //adjust the speed of the motors
-    analogWrite(ENA, power_a);
-    analogWrite(ENB, power_b);
-}
-
-
-
 //Returns true if the vehicle has arrived at the designated zone
 //Otherwise false
 bool do_begin_unloading(bool egg_is_inside) {
+	Serial.println(has_received_ir_signal());
     if (has_received_ir_signal() && egg_is_inside) {
         //Align the vehicle's IR receivers with the IR transmitters
         //Since IR system hasn't been finalised. Only stop and unload the egg
@@ -637,7 +554,7 @@ bool do_begin_unloading(bool egg_is_inside) {
 
 //Returns true if one of the IR recievers detects a signal from the transmitters
 bool has_received_ir_signal() {
-    return digitalRead(IR_REC_III) || digitalRead(IR_REC_IV);
+    return !digitalRead(IR_REC_III) || !digitalRead(IR_REC_IV);
 }
 
 //Step down

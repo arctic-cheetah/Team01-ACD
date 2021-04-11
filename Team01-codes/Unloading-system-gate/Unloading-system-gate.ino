@@ -32,7 +32,7 @@ void setup() {
     Serial.begin(9600);
     //pinMode(UNLOADING_MOTOR_EN, OUTPUT);
     //pinMode(UNLOADING_MOTOR_PHASE, OUTPUT);
-    Serial.println("Closing!");
+    Serial.println("Initialising!");
 }
 
 void loop() {

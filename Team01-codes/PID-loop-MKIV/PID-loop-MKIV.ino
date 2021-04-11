@@ -84,12 +84,11 @@ void setup() {
 }
 
 void loop() {
-    /*
+    
     if (Serial.available()) {
         motor_direction(Serial.read());
     }
-    */
-    forward();
+    /*
     //Debugging output
     Serial.print("A,");
     motor_A_freq_input = encoder_frequency(MOTOR_A_ENCODER);
@@ -104,6 +103,7 @@ void loop() {
     analogWrite(ENB, motor_B_freq_output);
     
     delay(TIME_STEP);
+    */
 }
 //////////////////////////////////////////////////////////////////////////////////////
 //Functions here
@@ -261,8 +261,8 @@ void init_motor() {
         pinMode(motor_pins[i], OUTPUT);
     }
     //Set the speed of the motors
-    analogWrite(ENA, 0);
-    analogWrite(ENB, 0);
+    analogWrite(ENA, 255);
+    analogWrite(ENB, 255);
 
 }
 //Initialise encoder pins
