@@ -1,4 +1,5 @@
 //A program to control the gate of the unloading system
+//And also to recalibrate it
 //Team01 ENGG1000
 //Jeremy Mang
 //Unloading motor pins

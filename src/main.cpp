@@ -19,6 +19,7 @@ int motor_pins[] = {10, 9, 8, 7, 6, 5};
 #define MOTOR_A_ENCODER 2
 #define MOTOR_B_ENCODER 3
 #define ENCODER_TICKS 20
+#define MOTOR_BIAS 80
 
 //direction codes: f == forward, r == reverse, s == stop
 char direction;
@@ -28,7 +29,7 @@ char direction;
 #define UNLOADING_MOTOR_EN 12
 //controls direction
 #define UNLOADING_MOTOR_PHASE 31
-#define UNLOAD_STEPS 18
+#define UNLOAD_STEPS 20
 
 //IR-line following (IRLF) pins A0 - A5
 //Front IR line followers
@@ -89,21 +90,21 @@ volatile unsigned long enc_l = 0;
 volatile unsigned long enc_r = 0;
 
 unsigned long num_ticks_l;
-    unsigned long num_ticks_r;
+unsigned long num_ticks_r;
 
-    // Set initial motor power
-    int power_l = MOTOR_SPEED;
-    int power_r = MOTOR_SPEED;
-    
-    //Determine the turn to adjust trajectory
-    unsigned long diff_l;
-    unsigned long diff_r;
-    
-    
-    
-    // Remember previous encoder counts
-    unsigned long enc_l_prev = enc_l;
-    unsigned long enc_r_prev = enc_r;
+// Set initial motor power
+int power_l = MOTOR_SPEED;
+int power_r = MOTOR_SPEED;
+
+//Determine the turn to adjust trajectory
+unsigned long diff_l;
+unsigned long diff_r;
+
+
+
+// Remember previous encoder counts
+unsigned long enc_l_prev = enc_l;
+unsigned long enc_r_prev = enc_r;
 
 
 
@@ -415,14 +416,14 @@ void adjust_trajectory(char direction) {
 		//Manual adjustment
 		if (digitalRead(IR_LF_A) && !digitalRead(IR_LF_B) && !digitalRead(IR_LF_C)) {
             
-			analogWrite(ENA, MAX_PWM - 20);
+			analogWrite(ENA, MAX_PWM - 30);
             Serial.println("turn left");
 			delay(TIME_STEP);
             //forward();
 		}
 		//Adjust to the right, if it veers to the left
 		else if (!digitalRead(IR_LF_A) && !digitalRead(IR_LF_B) && digitalRead(IR_LF_C)) {
-			analogWrite(ENB, MAX_PWM - 20);
+			analogWrite(ENB, MAX_PWM - 30);
             Serial.println("turn right");
 			delay(TIME_STEP);
             //forward();
@@ -528,7 +529,7 @@ bool is_egg_inside() {
 //Returns the distance in cm from the Ultrasonic obstacle detector
 double distance_by_USOD(int trig_pin, int echo_pin) {
 
-    unsigned long TimeOut = 20000;
+    unsigned long TimeOut = 20000; //In microseconds
     
     //Send 8 pulses at 40Khz for approx 10ms
     digitalWrite(trig_pin, HIGH);
@@ -600,7 +601,6 @@ double encoder_frequency(int motor_encoder) {
 //Returns true if the vehicle has arrived at the designated zone
 //Otherwise false
 bool do_begin_unloading(bool egg_is_inside) {
-	Serial.println(has_received_ir_signal());
     if (has_received_ir_signal() && egg_is_inside) {
         //Align the vehicle's IR receivers with the IR transmitters
         //Since IR system hasn't been finalised. Only stop and unload the egg
@@ -668,7 +668,7 @@ void open_gate() {
 }
 //Close the gate and turn off the motor
 void close_gate() {
-    for (int i = 0; i < UNLOAD_STEPS + 2; i +=1) {
+    for (int i = 0; i < UNLOAD_STEPS + 3; i +=1) {
         step_up();
     }
     
