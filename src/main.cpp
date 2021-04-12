@@ -100,12 +100,9 @@ int power_r = MOTOR_SPEED;
 unsigned long diff_l;
 unsigned long diff_r;
 
-
-
-// Remember previous encoder counts
+//Remember previous encoder counts
 unsigned long enc_l_prev = enc_l;
 unsigned long enc_r_prev = enc_r;
-
 
 
 //Function prototypes
@@ -142,11 +139,12 @@ bool has_received_ir_signal();
 void open_gate();
 void close_gate();
 
-//PID control
+//PID control (Technically only PI)
 double encoder_frequency(int motor_encoder);
 void drive(int power_a, int power_b);
 void count_left();
 void count_right();
+void adjust_motor_speed();
 
 
 //Red-green light system
@@ -181,20 +179,21 @@ void setup() {
 
 void loop() {
 
-
 	//Remote control
 	/*
 	if (Serial.available()) {
 		motor_direction(Serial.read());
 	}
 	*/
+
+
+    //Insert debugging output here
 	/*
 	Serial.println(distance_by_USOD(USOD_F_TRIG, USOD_F_ECHO));
 	Serial.println("\\\\\\\\\\\\\\\\\\");
 	Serial.println(distance_by_USOD(USOD_R_TRIG, USOD_R_ECHO));
 	//direction = motor_direction();
 	*/
-
 
 	on_green_light();
 	//Egg is inside, go to loading zone
@@ -214,8 +213,6 @@ void loop() {
 		reversing_truck_sound();
 	}
 
-
-
 	//Consider if this needs to be an interrupt
 	//Implement obstacle detection here:
 
@@ -234,45 +231,8 @@ void loop() {
 	//Implement trajectory control here:
 	//Operates by briefly slowing down the faster motor 
 	adjust_trajectory(direction);
-
 	//Adjust speed via PID loop
-	// Sample number of encoder ticks
-	num_ticks_l = enc_l;
-	num_ticks_r = enc_r;
-
-	//Drive
-	drive(power_l, power_r);
-	
-	// Print out current number of ticks
-	
-	Serial.print(num_ticks_l);
-	Serial.print("\t");
-	Serial.println(num_ticks_r);
-	
-
-	// Number of ticks counted since last time
-	//Proportional
-	diff_l = num_ticks_l - enc_l_prev;
-	diff_r = num_ticks_r - enc_r_prev;
-
-	// Store current tick counter for next time
-	enc_l_prev = num_ticks_l;
-	enc_r_prev = num_ticks_r;
-
-	// If left is faster, slow it down and speed up right
-	//output
-	if ( diff_l > diff_r ) {
-		power_l -= MOTOR_OFFSET;
-		power_r += MOTOR_OFFSET;
-	}
-	
-	// If right is faster, slow it down and speed up left
-	if ( diff_l < diff_r ) {
-		power_l += MOTOR_OFFSET;
-		power_r -= MOTOR_OFFSET;
-	}
-
-
+    adjust_motor_speed();
 
 	//4)Check if the IR signal is received
 	while(do_begin_unloading(is_egg_inside()) );
@@ -309,7 +269,6 @@ void init_encoder() {
     pinMode(MOTOR_B_ENCODER, INPUT);
 
 	//Setup interrupts
-	
     attachInterrupt(digitalPinToInterrupt(MOTOR_A_ENCODER), count_left, CHANGE);
     attachInterrupt(digitalPinToInterrupt(MOTOR_B_ENCODER), count_right, CHANGE);
 }
@@ -484,7 +443,14 @@ void drive(int power_a, int power_b) {
     power_a = constrain(power_a, -255, 255);
     power_b = constrain(power_b, -255, 255);
 
-    forward();
+    //Forwards
+    if (direction == 'f') {
+        forward();
+    }
+    //Reverse
+    else if (direction == 'b') {
+        reverse();
+    }
 
     //adjust the speed of the motors
     analogWrite(ENA, power_a);
@@ -566,7 +532,45 @@ void count_right() {
     enc_r +=1;
 }
 
+//Adjust the speed of the motor by counting the number of ticks
+void adjust_motor_speed() {
+    // Sample number of encoder ticks
+	num_ticks_l = enc_l;
+	num_ticks_r = enc_r;
 
+	//Drive
+	drive(power_l, power_r);
+	
+	// Print out current number of ticks
+	
+	Serial.print(num_ticks_l);
+	Serial.print("\t");
+	Serial.println(num_ticks_r);
+	
+
+	// Number of ticks counted since last time
+	//Proportional
+	diff_l = num_ticks_l - enc_l_prev;
+	diff_r = num_ticks_r - enc_r_prev;
+
+	// Store current tick counter for next time
+	enc_l_prev = num_ticks_l;
+	enc_r_prev = num_ticks_r;
+
+	// If left is faster, slow it down and speed up right
+	//output
+	if ( diff_l > diff_r ) {
+		power_l -= MOTOR_OFFSET;
+		power_r += MOTOR_OFFSET;
+	}
+	
+	// If right is faster, slow it down and speed up left
+	if ( diff_l < diff_r ) {
+		power_l += MOTOR_OFFSET;
+		power_r -= MOTOR_OFFSET;
+	}
+
+}
 
 //Returns the frequency of the encoder signal of the motor and is
 //related to rpm
