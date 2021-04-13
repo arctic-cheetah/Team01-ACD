@@ -81,11 +81,11 @@ void setup() {
 }
 
 void loop() {
-    /*
+    
     if (Serial.available()) {
         motor_direction(Serial.read());
     }
-    */
+    /*
     forward();
     //Debugging output
     Serial.print("A,");
@@ -99,7 +99,7 @@ void loop() {
     //Serial.println(motor_A_freq_output);
     analogWrite(ENA, motor_A_freq_output);
     analogWrite(ENB, motor_B_freq_output);
-    
+    */
     
     delay(TIME_STEP);
 }

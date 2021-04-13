@@ -4,6 +4,7 @@
 
 #include <Arduino.h>
 #include <PID_v1.h>
+#include <Servo.h>
 
 //Important constants
 //Motor pins
@@ -22,7 +23,7 @@ int motor_pins[] = {10, 9, 8, 7, 6, 5};
 #define MOTOR_BIAS 80
 
 //direction codes: f == forward, r == reverse, s == stop
-char direction;
+char direction = 'f';
 
 //Unloading motor pins
 //controls speed
@@ -175,6 +176,14 @@ void setup() {
     init_vcc();
 	Serial.println("All systems green!");
     delay(1000);
+
+    //Move to pick up position
+    while(!has_received_ir_signal()) {
+        adjust_motor_speed();
+    }
+    //Stop
+    halt();
+
 }
 
 void loop() {
@@ -195,6 +204,7 @@ void loop() {
 	//direction = motor_direction();
 	*/
 
+   
 	on_green_light();
 	//Egg is inside, go to loading zone
 	if (is_egg_inside()) {
