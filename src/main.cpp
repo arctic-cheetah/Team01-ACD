@@ -28,6 +28,9 @@ char direction = 'f';
 //Unloading motor pins
 //controls speed
 #define UNLOADING_MOTOR_EN 12
+#define OPEN_GATE 110
+#define CLOSE_GATE 10
+
 //controls direction
 #define UNLOADING_MOTOR_PHASE 31
 #define UNLOAD_STEPS 20
@@ -119,6 +122,7 @@ void init_red_green_light();
 void init_reverse_truck_sound();
 void init_vcc();
 
+
 //Motor directions
 void motor_direction(char c);
 void adjust_trajectory(char direction);
@@ -139,6 +143,8 @@ bool has_received_ir_signal();
 //Unloading system functions
 void open_gate();
 void close_gate();
+//Unloading motor object:
+Servo unloading_motor;
 
 //PID control (Technically only PI)
 double encoder_frequency(int motor_encoder);
@@ -146,7 +152,6 @@ void drive(int power_a, int power_b);
 void count_left();
 void count_right();
 void adjust_motor_speed();
-
 
 //Red-green light system
 void on_green_light();
@@ -268,8 +273,7 @@ void init_motor() {
 }
 //Initialise the unloading motor
 void init_unloading_motor() {
-    pinMode(UNLOADING_MOTOR_EN, OUTPUT);
-    pinMode(UNLOADING_MOTOR_PHASE, OUTPUT);
+    unloading_motor.attach(UNLOADING_MOTOR_EN);
 }
 
 //Initialise encoder pins
@@ -655,37 +659,13 @@ bool has_received_ir_signal() {
     return !digitalRead(IR_REC_III) || !digitalRead(IR_REC_IV);
 }
 
-//Step down
-void step_down () {
-    analogWrite(UNLOADING_MOTOR_EN, MAX_PWM);
-    digitalWrite(UNLOADING_MOTOR_PHASE, LOW);
-    delay(50);
-    //Turn off the motor
-    analogWrite(UNLOADING_MOTOR_EN, 0);
-    delay(200);
-}
-
-void step_up () {
-    analogWrite(UNLOADING_MOTOR_EN, MAX_PWM);
-    digitalWrite(UNLOADING_MOTOR_PHASE, HIGH);
-    delay(50);
-    //Turn off the motor
-    analogWrite(UNLOADING_MOTOR_EN, 0);
-    delay(200);
-}
-
 //Open the gate
 void open_gate() {
-    for (int i = 0; i < UNLOAD_STEPS; i +=1) {
-        step_down();
-    }
+    unloading_motor.write(OPEN_GATE);
 }
 //Close the gate and turn off the motor
 void close_gate() {
-    for (int i = 0; i < UNLOAD_STEPS + 3; i +=1) {
-        step_up();
-    }
-    
+    unloading_motor.write(CLOSE_GATE);
 }
 
 //Red-green light system

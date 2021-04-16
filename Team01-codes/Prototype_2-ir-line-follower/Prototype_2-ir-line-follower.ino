@@ -21,20 +21,25 @@ int motor_pins[] = {10, 9, 8, 7, 6, 5};
 #define ENCODER_TICKS 20
 
 //PID loop constants
-#define TIME_STEP 10 //Tells the Uno to sample and adjust the motor speed in milliseconds
+#define TIME_STEP 20 //Tells the Uno to sample and adjust the motor speed in milliseconds
 #define MOTOR_OFFSET 5  
 
 #define MAX_PWM 255
 #define MIN_PWM 0
-double motor_A_freq_input, motor_A_freq_output;
-double motor_B_freq_input, motor_B_freq_output;
-double same_input, same_output;  
-double motor_freq_set = 80;//Set the encoder frequency of the motor
 
+//IR-line following (IRLF) pins A0 - A5
+//Front IR line followers
+#define IR_LF_I A10 //OUT1
+#define IR_LF_A A11 //OUT2
+#define IR_LF_B A12 //OUT3
+#define IR_LF_C A13 //OUT4
+#define IR_LF_D A14 //OUT5
+#define SPEED_REDUCE 200
 //Tracks the ticks
 volatile unsigned long enc_l = 0;
 volatile unsigned long enc_r = 0;
-#define TIME_STEP 50
+#define TIME_STEP 20
+char direction = 'f';
 
 //Exponential smoothing constants
 double prev_term = 0;
@@ -44,6 +49,7 @@ double prev_term = 0;
 //Initialisers
 void init_motor();
 void init_encoder();
+void init_IR_follower();
 //Motor directions
 void motor_direction(char c);
 void forward();
@@ -51,11 +57,8 @@ void reverse();
 void left();
 void right();
 void halt();
+void adjust_trajectory();
 //PID control
-double motor_speed(int motor_encoder);
-double encoder_frequency(int motor_encoder);
-double duty_cycle(double T_period, unsigned long T_on);
-double exponential_smoothing(double prev_term, double curr_term);
 void count_left();
 void count_right();
 
@@ -64,6 +67,7 @@ void setup() {
     //Initialise systems
     init_motor();
     init_encoder();
+    init_IR_follower();
 
     pinMode(A2, OUTPUT);
     digitalWrite(A2, HIGH);
@@ -103,6 +107,9 @@ void loop() {
     unsigned long target_count = 1000;
 
     while ( (enc_l < target_count) && (enc_r < target_count) ) {
+
+        
+        
         // Sample number of encoder ticks
         num_ticks_l = enc_l;
         num_ticks_r = enc_r;
@@ -137,6 +144,8 @@ void loop() {
             power_r -= MOTOR_OFFSET;
         }
         
+        adjust_trajectory();
+
         delay(TIME_STEP);
     }
 
@@ -148,86 +157,78 @@ void loop() {
 }
 //////////////////////////////////////////////////////////////////////////////////////
 //Functions here
-//Find the motor RPM
-double motor_speed(int motor_encoder) {
-    //Extend the motor car code here
-    //Find the motor speed
-    unsigned long T_on = pulseIn(motor_encoder, HIGH);
-    unsigned long T_off = pulseIn(motor_encoder, LOW);
-
-    //No signal
-    if (!T_on && !T_off) {
-        return 0.0;
-    }
-    
-    //Debugging
-    //Serial.println(T_on);
-    //Serial.println(T_off);
-
-    //Find the time period of the wave = Ton + Toff (One tick)
-    double T_period = T_on + T_off;
-
-    //Debugging
-    //Serial.print("Period: ");
-    //Serial.println(T_period / 1000000);
-    //Serial.print("Frequency: ");
-    //Serial.println(1 / (T_period / 1000000));
-    
-    //Get the time taken for 20 ticks(one full wave) This is seconds taken per revolution
-    double time_per_rev = T_period / 1000000 * ENCODER_TICKS; // Convert milliseconds to seconds
-    
-    //Get RPS then RPM
-    //RPS
-    double rev_per_sec = 1 / double(time_per_rev);
-    //Serial.println(rev_per_sec);
-    //RPM
-    double rev_per_min = rev_per_sec * 60;
-    //Do not print inf
-    if ( !isinf(rev_per_min) ) {
-        //Serial.println(rev_per_min);
-        //Duty cycle
-        //Serial.println(duty_cycle(T_period, T_on));
-        return rev_per_min; 
-    }
-    //Serial.println(0.0);
-    return 0.0;
+//Initialise IR line followers for trajectory control
+void init_IR_follower() {
+	//Front IR_LF's
+	pinMode(IR_LF_A, INPUT);
+	pinMode(IR_LF_B, INPUT);
+	pinMode(IR_LF_C, INPUT);
+	//Rear IR_LF's
+	pinMode(IR_LF_D, INPUT);
+//	pinMode(IR_LF_E, INPUT);
 }
 
-//Returns the frequency of the encoder signal of the motor and is
-//related to rpm
-double encoder_frequency(int motor_encoder) {
+//Correct the trajectory of the vehicle if it veers away from the path
+//Refer to sensor diagram
+void adjust_trajectory() {
+    //During moving forwards
+	if (direction == 'f') {
+		//Adjust to the left lightly, if it goes to the right
+		//Manual adjustment
+		if (digitalRead(IR_LF_I) && !digitalRead(IR_LF_A) && digitalRead(IR_LF_B) && digitalRead(IR_LF_C)) {
+            
+			analogWrite(ENA, MAX_PWM - SPEED_REDUCE);
+            //left();
+            Serial.println("turn left");
+			delay(5*TIME_STEP);
+            //forward();
+		}
+        //HARD LEFT
+        if (!digitalRead(IR_LF_I) && digitalRead(IR_LF_A) && digitalRead(IR_LF_B) && digitalRead(IR_LF_C)) {
+            
+            analogWrite(ENA, MAX_PWM - SPEED_REDUCE);
+            //left();
+            Serial.println("turn left");
+            delay(10*TIME_STEP);
+            //forward();
+        }
+		//Adjust to the right, if it veers to the left
+		else if (digitalRead(IR_LF_A) && digitalRead(IR_LF_B) && !digitalRead(IR_LF_C)) {
+			analogWrite(ENA, MAX_PWM - SPEED_REDUCE - 20);
+            //right();
+            Serial.println("turn right");
+			delay(5*TIME_STEP);
+            //forward();
+        }
 
-    unsigned long T_on = pulseIn(motor_encoder, HIGH);//in microseconds
-    unsigned long T_off = pulseIn(motor_encoder, LOW);
-
-    //No signal
-    if (!T_on && !T_off) {
-        return 0.0;
-    }
-    
-    //Debugging
-    //Serial.println(T_on);
-    //Serial.println(T_off);
-
-    //Find the time period of the wave = Ton + Toff (One tick)
-    double T_period = double(T_on + T_off);
-    //Serial.println(T_period);
-
-    //Do not print inf
-    if ( !isinf(T_period) || !isnan(T_period)) {
-        double frequency = 1000000 / T_period; 
-        
-        //Perform exponential smoothing
-        //double curr_freq = exponential_smoothing(prev_term, frequency);
-        //prev_term = curr_freq;
-        Serial.println(frequency);
-        return frequency;
-    }
-    //Serial.println(0.0);
-    return 0.0;
-
+	}
+	else if (direction == 'b') {
+		//During reverse
+        //Adjust right
+		if (!digitalRead(IR_LF_A) && digitalRead(IR_LF_B) && digitalRead(IR_LF_C)) {
+            
+            analogWrite(ENA, MAX_PWM - SPEED_REDUCE - 20);
+            Serial.println("turn left");
+            delay(TIME_STEP/2);
+            //forward();
+        }
+        //HARD RIGHT
+        if (!digitalRead(IR_LF_I) && digitalRead(IR_LF_A) && digitalRead(IR_LF_B) && digitalRead(IR_LF_C)) {
+            analogWrite(ENA, MAX_PWM - SPEED_REDUCE - 40);
+            //Inverted controls
+            Serial.println("turn left");
+            delay(10*TIME_STEP);
+        }
+        //Adjust to the left, if it veers to the right
+        else if (digitalRead(IR_LF_A) && digitalRead(IR_LF_B) && !digitalRead(IR_LF_C)) {
+            analogWrite(ENB, MAX_PWM - SPEED_REDUCE - 20);
+            //right();
+            Serial.println("turn right");
+            delay(TIME_STEP/2);
+            //forward();
+        }
+	}
 }
-
 
 //Return the number of ticks of the left or right motor
 void count_left() {
@@ -237,11 +238,6 @@ void count_right() {
     enc_r +=1;
 }
 
-
-//Print the duty cycle
-double duty_cycle(double T_period, unsigned long T_on) {
-    return double(T_on / T_period);
-}
 
 //Control the motor direction
 void motor_direction(char c) {
@@ -310,7 +306,13 @@ void drive(int power_a, int power_b) {
     power_a = constrain(power_a, -255, 255);
     power_b = constrain(power_b, -255, 255);
 
-    reverse();
+    if (direction == 'f') {
+        forward();
+    }
+    else {
+        reverse();
+    }
+    
 
     //adjust the speed of the motors
     analogWrite(ENA, power_a);
@@ -324,16 +326,10 @@ void init_motor() {
     for (int i = 0; i < NUM_OF_MOTOR_PIN; i +=1) {
         pinMode(motor_pins[i], OUTPUT);
     }
-
 }
 //Initialise encoder pins
 void init_encoder() {
     //Set pin 2 and 3 as input
     pinMode(MOTOR_A_ENCODER, INPUT);
     pinMode(MOTOR_B_ENCODER, INPUT);
-}
-
-//Smooth the data
-double exponential_smoothing(double prev_term, double curr_term) {
-    return prev_term * ALPHA + (1 - ALPHA) * curr_term;
 }
