@@ -11,13 +11,10 @@ void setup() {
     pinMode(TRIGGER_PIN, OUTPUT);
     digitalWrite(TRIGGER_PIN, LOW);
     pinMode(ECHO_PIN, INPUT);
-
-    pinMode(A0, OUTPUT);
-    digitalWrite(A0, HIGH);
 }
 
 void loop () {
-    unsigned long TimeOut = 38000;
+    unsigned long TimeOut = 10000;
     
     //Send 8 pulses at 40Khz for approx 10ms
     digitalWrite(TRIGGER_PIN, HIGH);
@@ -27,16 +24,16 @@ void loop () {
 
 
     //Wait for the echo pin to become high
-    unsigned long endTime = micros() + long(1000);//ENSURE THIS IS a LONG
+    unsigned long endTime = micros() + TimeOut; //ENSURE THIS IS a LONG
     while (micros() < endTime && !digitalRead(ECHO_PIN));
 
     //Begin timing for the echo pin
     unsigned long timeBegin = micros();
     endTime = timeBegin + TimeOut;
     while (micros() < endTime && digitalRead(ECHO_PIN));
-
+    
     //Calculate the distance
-    double dist = double (micros() - timeBegin) * 34000 * (0.000001) / 2.0;
+    double dist = double (micros() - timeBegin) * 34000.0 * (0.000001) / 2.0;
   
     // Print the results
     Serial.print(dist);

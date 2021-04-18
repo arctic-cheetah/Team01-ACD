@@ -13,12 +13,6 @@ void setup() {
     digitalWrite(TRIGGER_PIN, LOW);
     pinMode(ECHO_PIN, INPUT);
 
-    pinMode(A0, OUTPUT);
-    digitalWrite(A0, HIGH);
-    pinMode(A1, OUTPUT);
-    digitalWrite(A1, HIGH);
-    pinMode(A2, OUTPUT);
-    digitalWrite(A2, HIGH);
     delay(2000);
 }
 

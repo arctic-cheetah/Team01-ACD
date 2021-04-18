@@ -81,9 +81,19 @@ void loop() {
     unsigned long num_ticks_l;
     unsigned long num_ticks_r;
 
-    // Set initial motor power
     int power_l = MOTOR_SPEED;
     int power_r = MOTOR_SPEED;
+    /*
+    // Set initial motor power
+    if (direction == 'f') {
+        power_l = MOTOR_SPEED;
+        power_r = MOTOR_SPEED - 70;
+    }
+    else if (direction == 'b') {
+        power_l = MOTOR_SPEED;
+        power_r = MOTOR_SPEED;
+    }
+    */
     
     //Determine the turn to adjust trajectory
     unsigned long diff_l;
@@ -166,31 +176,39 @@ void init_IR_follower() {
 void adjust_trajectory() {
     //During moving forwards
 	if (direction == 'f') {
-		//Adjust to the left lightly, if it goes to the right
+		//Adjust to the right lightly, if it goes to the left
 		//Manual adjustment
-		if (digitalRead(IR_LF_I) && !digitalRead(IR_LF_A) && digitalRead(IR_LF_B) && digitalRead(IR_LF_C)) {
+		if (digitalRead(IR_LF_I) && digitalRead(IR_LF_A) && digitalRead(IR_LF_B) && !digitalRead(IR_LF_C) && digitalRead(IR_LF_D)) {
             
-			analogWrite(ENA, MAX_PWM - SPEED_REDUCE);
+			analogWrite(ENA, MAX_PWM - SPEED_REDUCE - 20);
             //left();
             Serial.println("turn left");
-			delay(5*TIME_STEP);
+			delay(100*TIME_STEP);
             //forward();
 		}
-        //HARD LEFT
-        if (!digitalRead(IR_LF_I) && digitalRead(IR_LF_A) && digitalRead(IR_LF_B) && digitalRead(IR_LF_C)) {
+        //HARD RIGHT
+        if (digitalRead(IR_LF_I) && digitalRead(IR_LF_A) && digitalRead(IR_LF_B) && digitalRead(IR_LF_C) && !digitalRead(IR_LF_D)) {
             
-            analogWrite(ENA, MAX_PWM - SPEED_REDUCE);
+            analogWrite(ENA, MAX_PWM - SPEED_REDUCE - 40);
             //left();
             Serial.println("turn left");
-            delay(10*TIME_STEP);
+            delay(100*TIME_STEP);
             //forward();
         }
-		//Adjust to the right, if it veers to the left
-		else if (digitalRead(IR_LF_A) && digitalRead(IR_LF_B) && !digitalRead(IR_LF_C)) {
-			analogWrite(ENA, MAX_PWM - SPEED_REDUCE - 20);
+		//Adjust to the left, if it veers to the right
+		if (digitalRead(IR_LF_I) && !digitalRead(IR_LF_A) && digitalRead(IR_LF_B) && digitalRead(IR_LF_C) && digitalRead(IR_LF_D)) {
+			analogWrite(ENB, MAX_PWM - SPEED_REDUCE);
             //right();
             Serial.println("turn right");
-			delay(5*TIME_STEP);
+			delay(50*TIME_STEP);
+            //forward();
+        }
+        //HARD LEFT
+        if (!digitalRead(IR_LF_I) && digitalRead(IR_LF_A) && digitalRead(IR_LF_B) && digitalRead(IR_LF_C) && digitalRead(IR_LF_D)) {
+            analogWrite(ENB, MAX_PWM - SPEED_REDUCE - 20);
+            //right();
+            Serial.println("turn right");
+            delay(100*TIME_STEP);
             //forward();
         }
 
@@ -198,26 +216,35 @@ void adjust_trajectory() {
 	else if (direction == 'b') {
 		//During reverse
         //Adjust right
-		if (!digitalRead(IR_LF_A) && digitalRead(IR_LF_B) && digitalRead(IR_LF_C)) {
+		if (digitalRead(IR_LF_I) && !digitalRead(IR_LF_A) && digitalRead(IR_LF_B) && digitalRead(IR_LF_C) && digitalRead(IR_LF_D)) {
             
-            analogWrite(ENA, MAX_PWM - SPEED_REDUCE - 20);
+            //analogWrite(ENB, MAX_PWM - SPEED_REDUCE);
+            right();
             Serial.println("turn left");
-            delay(TIME_STEP/2);
+            delay(5 * TIME_STEP);
             //forward();
         }
         //HARD RIGHT
-        if (!digitalRead(IR_LF_I) && digitalRead(IR_LF_A) && digitalRead(IR_LF_B) && digitalRead(IR_LF_C)) {
-            analogWrite(ENA, MAX_PWM - SPEED_REDUCE - 40);
+        if (!digitalRead(IR_LF_I) && digitalRead(IR_LF_A) && digitalRead(IR_LF_B) && digitalRead(IR_LF_C) && digitalRead(IR_LF_D)) {
+            analogWrite(ENB, MAX_PWM - SPEED_REDUCE);
             //Inverted controls
             Serial.println("turn left");
             delay(10*TIME_STEP);
         }
         //Adjust to the left, if it veers to the right
-        else if (digitalRead(IR_LF_A) && digitalRead(IR_LF_B) && !digitalRead(IR_LF_C)) {
-            analogWrite(ENB, MAX_PWM - SPEED_REDUCE - 20);
+        if (digitalRead(IR_LF_I) && digitalRead(IR_LF_A) && digitalRead(IR_LF_B) && !digitalRead(IR_LF_C) && digitalRead(IR_LF_D)) {
+            analogWrite(ENA, MAX_PWM - SPEED_REDUCE);
             //right();
             Serial.println("turn right");
-            delay(TIME_STEP/2);
+            delay(5 * TIME_STEP);
+            //forward();
+        }
+        //HARD LEFT
+        if (digitalRead(IR_LF_I) && !digitalRead(IR_LF_A) && digitalRead(IR_LF_B) && digitalRead(IR_LF_C) && !digitalRead(IR_LF_D)) {
+            analogWrite(ENA, MAX_PWM - SPEED_REDUCE - 20);
+            //right();
+            Serial.println("turn right");
+            delay(10 * TIME_STEP);
             //forward();
         }
 	}
@@ -281,7 +308,6 @@ void left() {
     digitalWrite(IN4, LOW);
 }
 void right() {
-
     digitalWrite(IN1, LOW);
     digitalWrite(IN2, HIGH);
     digitalWrite(IN3, LOW);

@@ -1,7 +1,7 @@
 //A sound code for a reversing truck
 
 //Pins declared here
-#define SOUND_PIN 2
+#define SOUND_PIN 34
 
 //Settings for reversing truck sound
 #define INTERVAL 1000 //ms

@@ -9,7 +9,7 @@ Servo unloading_gate;
 
 #define UPPER 180
 #define LOWER 0
-#define SERVO_PIN A0
+#define SERVO_PIN 12
 
 //The variable to store the position of the servo
 long pos_servo = 0;
