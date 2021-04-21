@@ -27,8 +27,10 @@ char direction = 'f';
 
 //Timing 
 #define WAIT_EGG 100
-#define WAIT_TO_BEGIN 2000
+#define WAIT_TO_BEGIN 1000
 #define GET_OUT_OFF_IR_SIGNAL 500
+#define UNLOAD_EGG 1000
+
 
 //Unloading motor pins
 //controls speed
@@ -203,13 +205,14 @@ void setup() {
     //Make it fast again
     set_motor_speed(MOTOR_SPEED);
     //Wait for the egg to be deposited
+    off_green_light();
+    on_red_light();
     while (!is_egg_inside()) {
         Serial.print("Waiting for the egg to be deposited\n");
     }
     
     //Stop
     Serial.print("Egg received and IR signal accepted!\n");
-    delay(WAIT_TO_BEGIN);
 
     //Initiate
     forward();
@@ -238,7 +241,6 @@ void loop() {
 		forward();
 	}
 	//No egg in the car, return to loading zone by reversing
-	//In future, may implement turn around
 	else {
 		//Go backwards
 		direction = 'b';
@@ -256,7 +258,7 @@ void loop() {
     
     //3b,c,d)
 	//Implement trajectory control here:
-	//Operates by briefly slowing down the faster motor 
+	//Operates by briefly turning the vehicle
 	adjust_trajectory();
 	//Adjust speed via PID loop
     //adjust_motor_speed();
@@ -739,14 +741,15 @@ bool do_begin_unloading(bool egg_is_inside) {
         
         //0) Stop the car
         halt();
-        delay(1000);
+        delay(UNLOAD_EGG);
         //1)Show the red light
         off_green_light();
         on_red_light();
-        //Implement unloading system
+
         //2)Open the gate till the egg rolls out
         open_gate();
-        delay(2000);
+        delay(UNLOAD_EGG);
+
         //3)Shut the gate
         close_gate();
 
@@ -762,14 +765,15 @@ bool do_begin_unloading(bool egg_is_inside) {
         //Wait for the egg to be loaded;
         //and show the red light when stopped
         Serial.println("Load the egg\n");
+
         //0)Stop the car 
         halt();
         //1)Show red light
         off_green_light();
         on_red_light();
+
         //2)Wait for the egg to be loaded
         while(!is_egg_inside());
-        //Should add delay?
         off_red_light();
 
         //3)Move away from IR signal
