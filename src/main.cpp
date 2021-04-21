@@ -34,7 +34,7 @@ char direction = 'f';
 //controls speed
 #define UNLOADING_MOTOR_EN 12
 #define OPEN_GATE 0
-#define CLOSE_GATE 85
+#define CLOSE_GATE 90
 
 //IR-line following (IRLF) pins A0 - A5
 //Front IR line followers
@@ -114,7 +114,8 @@ void init_red_green_light();
 void init_reverse_truck_sound();
 
 //Motor directions
-void motor_direction(char c);
+void command(char c);
+void set_motor_speed(int speed);
 void adjust_trajectory();
 void forward();
 void reverse();
@@ -158,6 +159,7 @@ void reversing_truck_sound_off();
 //Main code here:
 void setup() {
 	Serial.begin(9600);
+    Serial1.begin(9600);
     //Motor control
 	init_motor();
     init_unloading_motor();
@@ -177,6 +179,8 @@ void setup() {
     delay(1000);
 
     //Move to pick up position
+    //Set the motor speed to be low:
+    set_motor_speed(MOTOR_SPEED - 120);
     Serial.print("Move to pickup location");
     on_green_light();
     while(!has_received_ir_signal()) {
@@ -188,7 +192,8 @@ void setup() {
         delay(WAIT_EGG);
     }
     halt();
-
+    //Make it fast again
+    set_motor_speed(MOTOR_SPEED);
     //Wait for the egg to be deposited
     while (!is_egg_inside()) {
         Serial.print("Waiting for the egg to be deposited\n");
@@ -209,11 +214,9 @@ void setup() {
 void loop() {
 
 	//Remote control
-	/*
 	if (Serial.available()) {
-		motor_direction(Serial.read());
+		command(Serial.read());
 	}
-	*/
     
     off_red_light();
     on_green_light();
@@ -223,7 +226,7 @@ void loop() {
 		//move forwards
         
 		direction = 'f';	
-        Serial.print("Forward\n");
+        //Serial.print("Forward\n");
 		forward();
 	}
 	//No egg in the car, return to loading zone by reversing
@@ -233,7 +236,7 @@ void loop() {
 		direction = 'b';
         reversing_truck_sound_on();
 		reverse();
-		Serial.print("Backward\n");
+		//Serial.print("Backward\n");
 	}
 
 	//Consider if this needs to be an interrupt
@@ -333,7 +336,7 @@ void init_reverse_truck_sound() {
 }
 
 //Control the motor direction
-void motor_direction(char c) {
+void command(char c) {
         
         //Move Forward
         if (c == 'f') {
@@ -371,7 +374,24 @@ void motor_direction(char c) {
             Serial.print("Close gate\n");
             close_gate();
         }
+        //White LED
+        else if (c == 'w') {
+            Serial.print("White light on!\n");
+            Serial1.write(c);
+        }
+        //Rainbow fading colours
+        else if (c == 'R') {
+            Serial.print("RGB fading colours on!\n");
+            Serial1.write('r');
+        }
 }
+
+//Set a motor speed manually
+void set_motor_speed(int speed) {
+    analogWrite(ENA, speed);
+    analogWrite(ENA, speed);
+}
+
 
 //Correct the trajectory of the vehicle if it veers away from the path
 //Refer to sensor diagram
@@ -391,52 +411,33 @@ void adjust_trajectory() {
 	if (direction == 'f') {
 		//Adjust to the right lightly, if it goes to the left
         if (digitalRead(IR_LF_I) && digitalRead(IR_LF_A) && !digitalRead(IR_LF_B) && digitalRead(IR_LF_C) && digitalRead(IR_LF_D)) {
-            /*
-			analogWrite(ENA, MAX_PWM - SPEED_REDUCE - 20);
-            
-            Serial.println("turn left");
-			delay(50*TIME_STEP);
-            */
-            left();
+            //left();
+            right();
             Serial.println("Adjust trajectory");
-            delay(TIME_STEP);
+            delay(5);
 		}
 
 		//Manual adjustment
 		if (digitalRead(IR_LF_I) && digitalRead(IR_LF_A) && digitalRead(IR_LF_B) && !digitalRead(IR_LF_C) && digitalRead(IR_LF_D)) {
-            /*
-			analogWrite(ENA, MAX_PWM - SPEED_REDUCE - 20);
-            
-            Serial.println("turn left");
-			delay(50*TIME_STEP);
-            */
             left();
             Serial.println("turn left");
             delay(TIME_STEP);
 		}
         //HARD RIGHT
         if (digitalRead(IR_LF_I) && digitalRead(IR_LF_A) && digitalRead(IR_LF_B) && digitalRead(IR_LF_C) && !digitalRead(IR_LF_D)) {
-            /*
-            analogWrite(ENA, MAX_PWM - SPEED_REDUCE - 40);
-            //left();
             Serial.println("turn left");
-            delay(50*TIME_STEP);
-            */
             left();
             delay(2 * TIME_STEP);
             
         }
 		//Adjust to the left, if it veers to the right
 		if (digitalRead(IR_LF_I) && !digitalRead(IR_LF_A) && digitalRead(IR_LF_B) && digitalRead(IR_LF_C) && digitalRead(IR_LF_D)) {
-			//analogWrite(ENB, MAX_PWM - SPEED_REDUCE);
             right();
             Serial.println("turn right");
 			delay(TIME_STEP);
         }
         //HARD LEFT
         if (!digitalRead(IR_LF_I) && digitalRead(IR_LF_A) && digitalRead(IR_LF_B) && digitalRead(IR_LF_C) && digitalRead(IR_LF_D)) {
-            //analogWrite(ENB, MAX_PWM - SPEED_REDUCE - 20);
-
             right();
             Serial.println("turn right");
             delay(2*TIME_STEP);
@@ -447,44 +448,35 @@ void adjust_trajectory() {
 	else if (direction == 'b') {
 		//During reverse
         //Adjust right
-        
         if (digitalRead(IR_LF_I) && digitalRead(IR_LF_A) && !digitalRead(IR_LF_B) && digitalRead(IR_LF_C) && digitalRead(IR_LF_D)) {
-            
-            //analogWrite(ENB, MAX_PWM - SPEED_REDUCE);
             Serial.println("Adjust trajectory");
-            delay(2 * TIME_STEP);
+            left();
+            delay(5);
         }
         
 		if (digitalRead(IR_LF_I) && digitalRead(IR_LF_A) && digitalRead(IR_LF_B) && !digitalRead(IR_LF_C) && digitalRead(IR_LF_D)) {
-            
-            //analogWrite(ENB, MAX_PWM - SPEED_REDUCE);
             right();
-            
-            Serial.println("turn left");
-            delay(2 * TIME_STEP);
+            Serial.println("turn right");
+            delay(1);
         }
         //HARD RIGHT
         if (digitalRead(IR_LF_I) && digitalRead(IR_LF_A) && digitalRead(IR_LF_B) && digitalRead(IR_LF_C) && !digitalRead(IR_LF_D)) {
-            //analogWrite(ENB, MAX_PWM - SPEED_REDUCE);
             //Inverted controls
             right();
-            
-            Serial.println("turn left");
-            delay(25);
+            Serial.println("turn right");
+            delay(10);
         }
         //Adjust to the left, if it veers to the right
         if (digitalRead(IR_LF_I) && !digitalRead(IR_LF_A) && digitalRead(IR_LF_B) && digitalRead(IR_LF_C) && digitalRead(IR_LF_D)) {
-            //analogWrite(ENA, MAX_PWM - SPEED_REDUCE);
             left();
-            Serial.println("turn right");
-            delay(TIME_STEP);
+            Serial.println("turn left");
+            delay(5);
         }
         //HARD LEFT
         if (!digitalRead(IR_LF_I) && digitalRead(IR_LF_A) && digitalRead(IR_LF_B) && digitalRead(IR_LF_C) && digitalRead(IR_LF_D)) {
-            //analogWrite(ENA, MAX_PWM - SPEED_REDUCE - 20);
             left();
-            Serial.println("turn right");
-            delay(2 * TIME_STEP);
+            Serial.println("turn left");
+            delay(15);
         }
         reverse();
 	}
@@ -753,6 +745,7 @@ bool do_begin_unloading(bool egg_is_inside) {
         on_red_light();
         //2)Wait for the egg to be loaded
         while(!is_egg_inside());
+        //Should add delay?
         off_red_light();
 
         //3)Move away from IR signal

@@ -237,8 +237,6 @@ void left() {
     digitalWrite(IN2, LOW);
     digitalWrite(IN3, HIGH);
     digitalWrite(IN4, LOW);
-    
-    
 }
 void right() {
     digitalWrite(IN1, LOW);
