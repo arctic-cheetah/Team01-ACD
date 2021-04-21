@@ -44,6 +44,14 @@ char direction = 'f';
 #define IR_LF_C A3 //OUT4
 #define IR_LF_D A4 //OUT5
 
+//Front IR line followers
+#define IR_LF_1 A11//OUT1 
+#define IR_LF_2 A12 //OUT2 
+#define IR_LF_3 A13 //OUT3
+#define IR_LF_4 A14 //OUT4
+#define IR_LF_5 A15 //OUT5
+
+
 //IR obstacle detection (IR_OD) pin 26
 //Egg detection
 #define IR_OD 26
@@ -301,9 +309,14 @@ void init_IR_follower() {
 	pinMode(IR_LF_I, INPUT);
 	pinMode(IR_LF_A, INPUT);
 	pinMode(IR_LF_B, INPUT);
-	//Rear IR_LF's
 	pinMode(IR_LF_C, INPUT);
 	pinMode(IR_LF_D, INPUT);
+    //Rear IR_LF's
+    pinMode(IR_LF_1, INPUT);
+	pinMode(IR_LF_2, INPUT);
+	pinMode(IR_LF_3, INPUT);
+	pinMode(IR_LF_4, INPUT);
+	pinMode(IR_LF_5, INPUT);
 }
 //Initialise obstacle detection
 void init_IR_OD() {
@@ -407,6 +420,17 @@ void adjust_trajectory() {
     Serial.print("\t");
     Serial.println(digitalRead(IR_LF_D));
     */
+    /*
+    Serial.print(digitalRead(IR_LF_1));
+    Serial.print("\t");
+    Serial.print(digitalRead(IR_LF_2));
+    Serial.print("\t");
+    Serial.print(digitalRead(IR_LF_3));
+    Serial.print("\t");
+    Serial.print(digitalRead(IR_LF_4));
+    Serial.print("\t");
+    Serial.println(digitalRead(IR_LF_5));
+    */
     //During moving forwards
 	if (direction == 'f') {
 		//Adjust to the right lightly, if it goes to the left
@@ -448,33 +472,33 @@ void adjust_trajectory() {
 	else if (direction == 'b') {
 		//During reverse
         //Adjust right
-        if (digitalRead(IR_LF_I) && digitalRead(IR_LF_A) && !digitalRead(IR_LF_B) && digitalRead(IR_LF_C) && digitalRead(IR_LF_D)) {
+        if (digitalRead(IR_LF_1) && digitalRead(IR_LF_2) && !digitalRead(IR_LF_3) && digitalRead(IR_LF_4) && digitalRead(IR_LF_5)) {
             Serial.println("Adjust trajectory");
             left();
             delay(5);
         }
         
-		if (digitalRead(IR_LF_I) && digitalRead(IR_LF_A) && digitalRead(IR_LF_B) && !digitalRead(IR_LF_C) && digitalRead(IR_LF_D)) {
-            right();
+		if (digitalRead(IR_LF_1) && digitalRead(IR_LF_2) && digitalRead(IR_LF_3) && !digitalRead(IR_LF_4) && digitalRead(IR_LF_5)) {
+            left();
             Serial.println("turn right");
             delay(1);
         }
         //HARD RIGHT
-        if (digitalRead(IR_LF_I) && digitalRead(IR_LF_A) && digitalRead(IR_LF_B) && digitalRead(IR_LF_C) && !digitalRead(IR_LF_D)) {
+        if (digitalRead(IR_LF_1) && digitalRead(IR_LF_2) && digitalRead(IR_LF_3) && digitalRead(IR_LF_4) && !digitalRead(IR_LF_5)) {
             //Inverted controls
-            right();
+            left();
             Serial.println("turn right");
             delay(10);
         }
         //Adjust to the left, if it veers to the right
-        if (digitalRead(IR_LF_I) && !digitalRead(IR_LF_A) && digitalRead(IR_LF_B) && digitalRead(IR_LF_C) && digitalRead(IR_LF_D)) {
-            left();
+        if (digitalRead(IR_LF_1) && !digitalRead(IR_LF_2) && digitalRead(IR_LF_3) && digitalRead(IR_LF_4) && digitalRead(IR_LF_5)) {
+            right();
             Serial.println("turn left");
             delay(5);
         }
         //HARD LEFT
-        if (!digitalRead(IR_LF_I) && digitalRead(IR_LF_A) && digitalRead(IR_LF_B) && digitalRead(IR_LF_C) && digitalRead(IR_LF_D)) {
-            left();
+        if (!digitalRead(IR_LF_1) && digitalRead(IR_LF_2) && digitalRead(IR_LF_3) && digitalRead(IR_LF_4) && digitalRead(IR_LF_5)) {
+            right();
             Serial.println("turn left");
             delay(15);
         }
