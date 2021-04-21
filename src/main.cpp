@@ -2,6 +2,8 @@
 //Jeremy Mang
 //25-03-2021
 
+// alex's test push
+
 #include <Arduino.h>
 #include <Servo.h>
 
@@ -29,7 +31,7 @@ char direction = 'f';
 #define WAIT_EGG 100
 #define WAIT_TO_BEGIN 1000
 #define GET_OUT_OFF_IR_SIGNAL 500
-#define UNLOAD_EGG 1000
+#define UNLOAD_EGG 500
 
 
 //Unloading motor pins
@@ -109,7 +111,6 @@ unsigned long diff_right;
 //Remember previous encoder counts
 unsigned long left_encoder_prev = left_encoder;
 unsigned long right_encoder_prev = right_encoder;
-
 
 //Function prototypes
 //Initialisers
@@ -237,7 +238,7 @@ void loop() {
 		//move forwards
         
 		direction = 'f';	
-        //Serial.print("Forward\n");
+        Serial.print("Forward\n");
 		forward();
 	}
 	//No egg in the car, return to loading zone by reversing
@@ -246,7 +247,7 @@ void loop() {
 		direction = 'b';
         reversing_truck_sound_on();
 		reverse();
-		//Serial.print("Backward\n");
+		Serial.print("Backward\n");
 	}
 
 	//Consider if this needs to be an interrupt
@@ -735,6 +736,7 @@ double encoder_frequency(int motor_encoder) {
 //Returns true if the vehicle has arrived at the designated zone
 //Otherwise false
 bool do_begin_unloading(bool egg_is_inside) {
+
     if (has_received_ir_signal() && egg_is_inside) {
         //stop and unload the egg
         //Show the red light when stopped   
