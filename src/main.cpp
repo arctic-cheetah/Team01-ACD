@@ -92,6 +92,7 @@ unsigned long lastTime = 0; //Keep track of time for arduino reversing truck sou
 #define MAX_PWM 230
 #define MOTOR_OFFSET 5
 
+#define SPEED_DROP 1        // speed drop code - set to 0 to turn off
 
 //Tracks the ticks
 volatile unsigned long left_encoder = 0;
@@ -112,6 +113,11 @@ unsigned long diff_right;
 unsigned long left_encoder_prev = left_encoder;
 unsigned long right_encoder_prev = right_encoder;
 
+
+#if SPEED_DROP
+// count ir recv 
+volatile int ir_recv_count = 0;
+#endif
 
 //Function prototypes
 //Initialisers
@@ -737,6 +743,50 @@ double encoder_frequency(int motor_encoder) {
 //Returns true if the vehicle has arrived at the designated zone
 //Otherwise false
 bool do_begin_unloading(bool egg_is_inside) {
+    #if SPEED_DROP
+    if (has_received_ir_signal() && ir_recv_count == 0) {
+        ir_recv_count = 1;  // adjust counter
+
+        open_gate();    
+
+        // stop vehicle and reverse
+        halt();     
+        delay(UNLOAD_EGG);
+        off_green_light();
+        on_red_light();
+        close_gate();
+        direction = 'b';
+        reverse();
+        adjust_trajectory();
+    } else if (has_received_ir_signal() && ir_recv_count == 1) {
+        ir_recv_count = 2;  // adjust counter
+
+        // stay inside of loop 
+        return true
+    } else if (has_received_ir_signal() && ir_recv_count == 2) {
+        ir_recv_count = 0;  // adjust counter
+
+        //Wait for the egg to be loaded;
+        //and show the red light when stopped
+        Serial.println("Load the egg\n");
+
+        //0)Stop the car 
+        halt();
+        //1)Show red light
+        off_green_light();
+        on_red_light();
+
+        //2)Wait for the egg to be loaded
+        while(!is_egg_inside());
+        off_red_light();
+
+        //3)Move away from IR signal
+        direction = 'f';
+        forward();
+        adjust_trajectory();
+        delay(GET_OUT_OFF_IR_SIGNAL);
+    }
+    #else
     if (has_received_ir_signal() && egg_is_inside) {
         //stop and unload the egg
         //Show the red light when stopped   
@@ -786,6 +836,7 @@ bool do_begin_unloading(bool egg_is_inside) {
         
 
     }
+    #endif
     return false;
 }
 
