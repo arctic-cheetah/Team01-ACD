@@ -743,22 +743,17 @@ bool do_begin_unloading(bool egg_is_inside) {
     // - keeps same amount of pauses therefore will skip the same amount of IR receivers
     if (has_received_ir_signal() && egg_is_inside) {
         //0) Open Gate
-        open_gate();
+        open_gate();    // code is same except this line moved to start
 
         //1) Stop the car
         halt();
         delay(UNLOAD_EGG);
+
         //2)Show the red light
         off_green_light();
         on_red_light();
 
-        // keep delay from unloading
-        delay(UNLOAD_EGG);
-
-        //3)Shut the gate
-        close_gate();
-
-        //2)Open the gate till the egg rolls out
+        // keep delay from before incase this is important
         delay(UNLOAD_EGG);
 
         //3)Shut the gate
