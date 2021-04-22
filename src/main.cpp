@@ -7,6 +7,8 @@
 #include <Arduino.h>
 #include <Servo.h>
 
+#define V2 1
+
 //Important constants
 //Motor pins
 int motor_pins[] = {10, 9, 8, 7, 6, 5};
@@ -736,7 +738,40 @@ double encoder_frequency(int motor_encoder) {
 //Returns true if the vehicle has arrived at the designated zone
 //Otherwise false
 bool do_begin_unloading(bool egg_is_inside) {
+    #if V2
+    // rearrange ordering
+    // - keeps same amount of pauses therefore will skip the same amount of IR receivers
+    if (has_received_ir_signal() && egg_is_inside) {
+        //0) Open Gate
+        open_gate();
 
+        //1) Stop the car
+        halt();
+        delay(UNLOAD_EGG);
+        //2)Show the red light
+        off_green_light();
+        on_red_light();
+
+        // keep delay from unloading
+        delay(UNLOAD_EGG);
+
+        //3)Shut the gate
+        close_gate();
+
+        //2)Open the gate till the egg rolls out
+        delay(UNLOAD_EGG);
+
+        //3)Shut the gate
+        close_gate();
+
+        //4) Move away from the IR signal
+        off_red_light();
+        direction = 'b';
+        reverse();
+        adjust_trajectory();
+        delay(GET_OUT_OFF_IR_SIGNAL);
+    }
+    #else 
     if (has_received_ir_signal() && egg_is_inside) {
         //stop and unload the egg
         //Show the red light when stopped   
@@ -763,6 +798,7 @@ bool do_begin_unloading(bool egg_is_inside) {
         delay(GET_OUT_OFF_IR_SIGNAL);
         
     }
+    #endif
     else if (has_received_ir_signal() && !egg_is_inside) {
         //Wait for the egg to be loaded;
         //and show the red light when stopped
