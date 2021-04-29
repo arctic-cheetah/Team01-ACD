@@ -5,7 +5,7 @@
 #include <Arduino.h>
 #include <Servo.h>
 
-#define V2 1
+#define V2 0
 
 //Important constants
 //Motor pins
