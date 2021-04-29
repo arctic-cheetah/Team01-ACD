@@ -24,6 +24,13 @@ char c = 0;
 
 void command(char instruct);
 void reversing_truck_sound();
+void rand_RGB();
+void RGB_fade();
+void white_LED();
+void on_Red();
+void on_Green();
+void on_Blue();
+void OFF();
 
 void setup() {
     Serial.begin(9600);
@@ -66,6 +73,28 @@ void command(char instruct) {
         Serial.print("White light on!\n");
         white_LED();
     }
+    //Random lights (erratic)
+    else if (instruct == 'e') {
+        Serial.print("Random colours on!\n");
+        rand_RGB();
+    }
+    //Red
+    else if (instruct == '1') {
+        Serial.print("Red on!\n");
+        on_Red();
+    }
+    else if (instruct == '2') {
+        Serial.print("Green on!\n");
+        on_Green();
+    }
+    else if (instruct == '3') {
+        Serial.print("Blue on!\n");
+        on_Blue();
+    }
+    else if (instruct == '0') {
+        Serial.print("Off!\n");
+        OFF();
+    }
 }
 
 //Only white LED light
@@ -73,6 +102,35 @@ void white_LED(){
     analogWrite(BLUE_LED, MAX_PWM);
     analogWrite(RED_LED, MAX_PWM);
     analogWrite(GREEN_LED, MAX_PWM);
+}
+
+//Random colours
+void rand_RGB() {
+    analogWrite(BLUE_LED, random(0, MAX_PWM));
+    analogWrite(RED_LED, random(0, MAX_PWM));
+    analogWrite(GREEN_LED, random(0, MAX_PWM));
+    delay(500);
+}
+
+void on_Red() {
+    analogWrite(BLUE_LED, 0);
+    analogWrite(RED_LED, MAX_PWM);
+    analogWrite(GREEN_LED, 0);
+}
+void on_Green() {
+    analogWrite(BLUE_LED, 0);
+    analogWrite(RED_LED, 0);
+    analogWrite(GREEN_LED, MAX_PWM);
+}
+void on_Blue() {
+    analogWrite(BLUE_LED, MAX_PWM);
+    analogWrite(RED_LED, 0);
+    analogWrite(GREEN_LED, 0);
+}
+void OFF() {
+    analogWrite(BLUE_LED, 0);
+    analogWrite(RED_LED, 0);
+    analogWrite(GREEN_LED, 0);
 }
 
 //Fades the RGB light

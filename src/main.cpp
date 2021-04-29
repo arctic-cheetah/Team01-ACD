@@ -2,8 +2,6 @@
 //Jeremy Mang
 //25-03-2021
 
-// alex's test push
-
 #include <Arduino.h>
 #include <Servo.h>
 
@@ -17,14 +15,17 @@ int motor_pins[] = {10, 9, 8, 7, 6, 5};
 #define ENB 5
 #define IN3 7
 #define IN4 6
-#define MOTOR_SPEED 220
+#define MOTOR_SPEED 240
 #define MOTOR_A_ENCODER 2
 #define MOTOR_B_ENCODER 3
 #define ENCODER_TICKS 20
 #define MOTOR_BIAS 80
 #define SPEED_REDUCE 200
+
 //direction codes: f == forward, r == reverse, s == stop
 char direction = 'f';
+bool pick_up = false;
+bool is_autonomous = true;
 
 
 //Timing 
@@ -38,7 +39,7 @@ char direction = 'f';
 //controls speed
 #define UNLOADING_MOTOR_EN 12
 #define OPEN_GATE 0
-#define CLOSE_GATE 90
+#define CLOSE_GATE 100
 
 //IR-line following (IRLF) pins A0 - A5
 //Front IR line followers
@@ -54,7 +55,6 @@ char direction = 'f';
 #define IR_LF_3 A13 //OUT3
 #define IR_LF_4 A14 //OUT4
 #define IR_LF_5 A15 //OUT5
-
 
 //IR obstacle detection (IR_OD) pin 26
 //Egg detection
@@ -87,16 +87,13 @@ char direction = 'f';
 unsigned long duration = 0; //Duration for off time arduino
 unsigned long lastTime = 0; //Keep track of time for arduino reversing truck sound
 
-//PID loop constants
+//PID loop variabes and constants
 #define TIME_STEP 20 //Tells the Uno to sample and adjust the motor speed in milliseconds
-#define MAX_PWM 230
+#define MAX_PWM 250
 #define MOTOR_OFFSET 5
-
-
 //Tracks the ticks
 volatile unsigned long left_encoder = 0;
 volatile unsigned long right_encoder = 0;
-
 unsigned long left_num_ticks;
 unsigned long right_num_ticks;
 
@@ -123,6 +120,7 @@ void init_USOD();
 void init_IR_receiver();
 void init_red_green_light();
 void init_reverse_truck_sound();
+void go_to_pick_up();
 
 //Motor directions
 void command(char c);
@@ -189,90 +187,82 @@ void setup() {
 	Serial.println("All systems green!");
     delay(1000);
 
-    //Move to pick up position
-    //Set the motor speed to be low:
-    set_motor_speed(MOTOR_SPEED - 120);
-    Serial.print("Move to pickup location");
-    on_green_light();
-    while(!has_received_ir_signal()) {
-        forward();
-        direction = 'f';
-        //adjust_motor_speed();
-        adjust_trajectory();
-        check_obstacle();
-        delay(WAIT_EGG);
-    }
-    halt();
-    //Make it fast again
-    set_motor_speed(MOTOR_SPEED);
-    //Wait for the egg to be deposited
-    off_green_light();
-    on_red_light();
-    while (!is_egg_inside()) {
-        Serial.print("Waiting for the egg to be deposited\n");
-    }
-    
-    //Stop
-    Serial.print("Egg received and IR signal accepted!\n");
+    Serial.print("Select mode: \n");
+    Serial.print("A : for autonomous mode\n");
+    Serial.print("B : for remote control mode\n");
 
-    //Initiate
-    forward();
-    direction = 'f';
-    //adjust_motor_speed();
-    adjust_trajectory();
-    delay(TIME_STEP * 25);
+    
 }
 
 void loop() {
 
-	//Remote control
-	if (Serial.available()) {
-		command(Serial.read());
-	}
-    
-    off_red_light();
-    on_green_light();
-	
-	//Egg is inside, go to loading zone
-	if (is_egg_inside()) {
-		//move forwards
+    if (is_autonomous) {
+        //Initiate and go to pick up only once:
+        if (!pick_up) {
+            pick_up = true;
+            go_to_pick_up();
+
+            //Initiate
+            forward();
+            direction = 'f';
+            //adjust_motor_speed();
+            adjust_trajectory();
+            delay(TIME_STEP * 25);
+        }
+        //Remote control
+        if (Serial.available()) {
+            command(Serial.read());
+        }
         
-		direction = 'f';	
-        Serial.print("Forward\n");
-		forward();
-	}
-	//No egg in the car, return to loading zone by reversing
-	else {
-		//Go backwards
-		direction = 'b';
-        reversing_truck_sound_on();
-		reverse();
-		Serial.print("Backward\n");
-	}
+        off_red_light();
+        on_green_light();
+        
+        //Egg is inside, go to loading zone
+        if (is_egg_inside()) {
+            //move forwards
+            
+            direction = 'f';	
+            Serial.print("Forward\n");
+            forward();
+        }
+        //No egg in the car, return to loading zone by reversing
+        else {
+            //Go backwards
+            direction = 'b';
+            reversing_truck_sound_on();
+            reverse();
+            Serial.print("Backward\n");
+        }
 
-	//Consider if this needs to be an interrupt
-	//Implement obstacle detection here:
+        //Implement obstacle detection here:
 
-	//3a)Stop moving until the obstacle has passed
-	//Show the red light
-    check_obstacle();
-    
-    //3b,c,d)
-	//Implement trajectory control here:
-	//Operates by briefly turning the vehicle
-	adjust_trajectory();
-	//Adjust speed via PID loop
-    //adjust_motor_speed();
-	
-	//4)Check if the IR signal is received
-	while(do_begin_unloading(is_egg_inside()) );
+        //3a)Stop moving until the obstacle has passed
+        //Show the red light
+        check_obstacle();
+        
+        //3b,c,d)
+        //Operates by briefly turning the vehicle
+        adjust_trajectory();
+        //Adjust speed via PID loop
+        //adjust_motor_speed();
+        
+        //4)Check if the IR signal is received
+        while(do_begin_unloading(is_egg_inside()) );
 
-    //Turn off the truck sound
-    reversing_truck_sound_off();
+        //Turn off the truck sound
+        reversing_truck_sound_off();
 
-	//Time step = 20ms
-	//May need to adjust this because of other sensor delays
-	delay(TIME_STEP);
+        //Time step = 20ms
+        //May need to adjust this because of other sensor delays
+        delay(TIME_STEP);
+    }
+
+    else {
+        //Remote control
+        if (Serial.available()) {
+            command(Serial.read());
+        }
+    }
 	
 }
 
@@ -400,6 +390,32 @@ void command(char c) {
             Serial.print("RGB fading colours on!\n");
             Serial1.write('r');
         }
+        //Random colours
+        else if (c == 'e') {
+            Serial.print("Random colours on!\n");
+            Serial1.write('e');
+        }
+        //Red
+        else if (c == '1') {
+            Serial.print("Red on!\n");
+            Serial1.write('1');
+        }
+        //Green
+        else if (c == '2') {
+            Serial.print("Green on!\n");
+            Serial1.write('2');
+        }
+        //Blue
+        else if (c == '3') {
+            Serial.print("Blue on!\n");
+            Serial1.write('3');
+        }
+        //Off
+        else if (c == '0') {
+            Serial.print("Off!\n");
+            Serial1.write('0');
+        }
+
 }
 
 //Set a motor speed manually
@@ -408,6 +424,36 @@ void set_motor_speed(int speed) {
     analogWrite(ENA, speed);
 }
 
+//Get the vehicle to move to the pick up location
+void go_to_pick_up() {
+
+    //Move to pick up position
+    //Set the motor speed to be low:
+    set_motor_speed(MOTOR_SPEED - 120);
+    Serial.print("Move to pickup location");
+    on_green_light();
+    while(!has_received_ir_signal()) {
+        forward();
+        direction = 'f';
+        //adjust_motor_speed();
+        adjust_trajectory();
+        check_obstacle();
+        delay(WAIT_EGG);
+    }
+    halt();
+    //Make it fast again
+    set_motor_speed(MOTOR_SPEED);
+    //Wait for the egg to be deposited
+    off_green_light();
+    on_red_light();
+    while (!is_egg_inside()) {
+        Serial.print("Waiting for the egg to be deposited\n");
+    }
+    
+    //Stop
+    Serial.print("Egg received and IR signal accepted!\n");
+    
+}
 
 //Correct the trajectory of the vehicle if it veers away from the path
 //Refer to sensor diagram
@@ -438,10 +484,10 @@ void adjust_trajectory() {
 	if (direction == 'f') {
 		//Adjust to the right lightly, if it goes to the left
         if (digitalRead(IR_LF_I) && digitalRead(IR_LF_A) && !digitalRead(IR_LF_B) && digitalRead(IR_LF_C) && digitalRead(IR_LF_D)) {
-            //left();
-            right();
+            left();
+            //right();
             Serial.println("Adjust trajectory");
-            delay(5);
+            delay(3);
 		}
 
 		//Manual adjustment
@@ -478,13 +524,13 @@ void adjust_trajectory() {
         if (digitalRead(IR_LF_1) && digitalRead(IR_LF_2) && !digitalRead(IR_LF_3) && digitalRead(IR_LF_4) && digitalRead(IR_LF_5)) {
             Serial.println("Adjust trajectory");
             left();
-            delay(5);
+            delay(3);
         }
         
 		if (digitalRead(IR_LF_1) && digitalRead(IR_LF_2) && digitalRead(IR_LF_3) && !digitalRead(IR_LF_4) && digitalRead(IR_LF_5)) {
             left();
             Serial.println("turn right");
-            delay(1);
+            delay(3);
         }
         //HARD RIGHT
         if (digitalRead(IR_LF_1) && digitalRead(IR_LF_2) && digitalRead(IR_LF_3) && digitalRead(IR_LF_4) && !digitalRead(IR_LF_5)) {
@@ -750,7 +796,7 @@ bool do_begin_unloading(bool egg_is_inside) {
 
         //2)Open the gate till the egg rolls out
         open_gate();
-        delay(UNLOAD_EGG);
+        delay(2 * UNLOAD_EGG);
 
         //3)Shut the gate
         close_gate();
