@@ -5,6 +5,7 @@
 #include <Arduino.h>
 #include <Servo.h>
 #define V2 0
+
 //Important constants
 //Motor pins
 int motor_pins[] = {10, 9, 8, 7, 6, 5};
